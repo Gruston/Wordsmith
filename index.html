@@ -250,7 +250,7 @@ function mergeWordDBs(initialWords, extendedWords) {
 }
 
 // ── Export to window ──
-// Available to index.html which loads this file before its <script type="text/babel">
+// Available to index.html which loads this file as a plain script before Babel
 if (typeof window !== "undefined") {
   window.TierService = {
     getTierUnlockThreshold: getTierUnlockThreshold,
@@ -4281,5 +4281,66 @@ function WordSmithApp() {
     }
   </script>
 
+
+  <!-- FAILSAFE: hides loader and shows error if React fails to mount within 12s -->
+  <script>
+    (function() {
+      var TIMEOUT_MS = 12000;
+      var checkInterval = 500;
+      var elapsed = 0;
+
+      function dismissLoader() {
+        var loader = document.getElementById('loading');
+        if (loader) {
+          loader.style.transition = 'opacity 0.3s ease';
+          loader.style.opacity = '0';
+          setTimeout(function() { if (loader.parentNode) loader.parentNode.removeChild(loader); }, 350);
+        }
+      }
+
+      function showError() {
+        var loader = document.getElementById('loading');
+        if (loader) {
+          loader.innerHTML = [
+            '<div style="font-family:sans-serif;color:#fff;text-align:center;padding:40px 24px;max-width:340px;margin:0 auto">',
+            '<div style="font-size:40px;margin-bottom:16px">⚠️</div>',
+            '<div style="font-size:20px;font-weight:700;margin-bottom:12px">WordSmith failed to load</div>',
+            '<div style="font-size:14px;color:rgba(255,255,255,0.7);line-height:1.6;margin-bottom:20px">',
+            'This is usually caused by a slow or blocked internet connection.',
+            '<br><br>',
+            'The app requires internet access to load React and Babel from unpkg.com.',
+            '</div>',
+            '<button onclick="location.reload()" style="background:#FF6B35;color:#fff;border:none;',
+            'border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer">',
+            'Try Again</button>',
+            '</div>'
+          ].join('');
+          loader.style.opacity = '1';
+          loader.style.display = 'flex';
+          loader.style.alignItems = 'center';
+          loader.style.justifyContent = 'center';
+        }
+      }
+
+      var poll = setInterval(function() {
+        elapsed += checkInterval;
+        var root = document.getElementById('root');
+        var appMounted = root && root.children.length > 0;
+
+        if (appMounted) {
+          clearInterval(poll);
+          // App is running — loader should already be gone via the 800ms timer
+          // but dismiss it here as a backup
+          dismissLoader();
+          return;
+        }
+
+        if (elapsed >= TIMEOUT_MS) {
+          clearInterval(poll);
+          showError();
+        }
+      }, checkInterval);
+    })();
+  </script>
 </body>
 </html>
