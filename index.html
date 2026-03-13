@@ -90,6 +90,10 @@
 
   <!-- Babel standalone: transforms JSX in the browser -->
   <!-- Note: ~900KB — acceptable for a private beta app with 1-20 users -->
+  <!-- tier-service.js: pure tier-unlock logic, exposes window.TierService -->
+  <script src="tier-service.js"></script>
+  <!-- words.js: 462 extended vocabulary words (IDs 1000+) -->
+  <script src="words.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
 
   <!-- The app — Babel transforms JSX at load time -->
@@ -848,6 +852,23 @@ const INITIAL_WORDS_DB = [
   { id:565, word:"Pensive", pronunciation:"PEN-siv", definition:"Engaged in deep or serious thought; thoughtful.", synonyms:["thoughtful","reflective","contemplative","meditative"], textContext:"Lyric poetry and modernist verse often adopt a pensive, introspective tone.", examples:[{source:"Essay",text:"The pensive tone of the opening lines creates space for quiet reflection before the violence."},{source:"Creative",text:"He sat in pensive silence, staring at the photograph."},{source:"Everyday",text:"She became pensive when the conversation turned to her childhood."}], tags:["Tone & Mood"], category:"analytical", list:"tone", difficulty:1, strength:0, status:"new" },
 ];
 
+// ── EXTENDED WORD DATABASE MERGE ──
+// Combines INITIAL_WORDS_DB with EXTENDED_WORDS_DB (from words.js).
+// Falls back gracefully if words.js failed to load.
+// tier-service.js must load before this script for mergeWordDBs to be available.
+const ALL_WORDS_DB = (function() {
+  try {
+    if (window.TierService && window.EXTENDED_WORDS_DB) {
+      const merged = window.TierService.mergeWordDBs(INITIAL_WORDS_DB, window.EXTENDED_WORDS_DB);
+      console.log("[WordSmith] Word DB: " + INITIAL_WORDS_DB.length + " existing + " + window.EXTENDED_WORDS_DB.length + " extended = " + merged.length + " total");
+      return merged;
+    }
+  } catch (e) {
+    console.error("[WordSmith] Failed to merge extended words — falling back to INITIAL_WORDS_DB:", e);
+  }
+  return INITIAL_WORDS_DB;
+})();
+
 const WORD_LISTS = [
   { id: "gatsby", name: "The Great Gatsby", icon: "📗", color: "#34C759" },
   { id: "macbeth", name: "Macbeth", icon: "🗡️", color: "#FF2D55" },
@@ -1170,9 +1191,18 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges }) {
   const totalWords = goal + reviewWords;
   const done = gameState.wordsToday || 0;
   const remaining = Math.max(0, totalWords - done);
-  const todayWord = wordsDB[Math.floor(Date.now() / 86400000) % wordsDB.length];
+  // Only show words from unlocked tiers. Memoised — recomputes when wordsDB changes.
+  const unlockedWords = useMemo(
+    () => window.TierService ? window.TierService.getUnlockedWords(wordsDB) : wordsDB,
+    [wordsDB]
+  );
+  // todayWord: date-stable daily pick from unlocked words only.
+  const todayWord = useMemo(() => {
+    if (!unlockedWords || unlockedWords.length === 0) return null;
+    return unlockedWords[Math.floor(Date.now() / 86400000) % unlockedWords.length];
+  }, [unlockedWords]);
   const today = todayISO();
-  const dueWords = wordsDB.filter(w => {
+  const dueWords = useMemo(() => unlockedWords.filter(w => {
     if (w.status === "new") return false;
     if (!w.nextReview) return w.status === "learning";
     return w.nextReview <= today;
@@ -1267,8 +1297,8 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges }) {
           </div>
         </div>
 
-        {/* Word of the Day */}
-        <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 20, marginBottom: 20 }}>
+        {/* Word of the Day — null-guarded: todayWord can be null if no words unlocked */}
+        {todayWord && <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 20, marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <SectionLabel>Word of the Day</SectionLabel>
             <div onClick={() => speak(todayWord.word)} style={{ fontSize: 10, fontWeight: 500, background: "rgba(168,85,247,0.15)", color: "#C084FC", padding: "3px 10px", borderRadius: 20, border: "1px solid rgba(168,85,247,0.2)", cursor: "pointer" }}>🔊 Listen</div>
@@ -1289,7 +1319,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges }) {
               }}>{tag}</span>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Daily Puzzles */}
         <div style={{ marginBottom: 20 }}>
@@ -1725,12 +1755,17 @@ function WordListsScreen({ onNav, wordsDB }) {
    ════════════════════════════════════════════ */
 function PracticeScreen({ onNav, userPrefs, wordsDB, updateWord, completePractice }) {
   const goal = userPrefs?.goal || 5;
+  // Filter to unlocked tiers — Tier 4 words must not appear before prerequisites mastered.
+  const unlockedWords = useMemo(
+    () => window.TierService ? window.TierService.getUnlockedWords(wordsDB) : wordsDB,
+    [wordsDB]
+  );
   const sessionWords = useMemo(() => {
-    const newWords = wordsDB.filter(w => w.status === "new").slice(0, Math.ceil(goal * 0.4));
-    const reviewWords = wordsDB.filter(w => w.status === "learning" || w.status === "familiar").slice(0, goal - newWords.length);
+    const newWords = unlockedWords.filter(w => w.status === "new").slice(0, Math.ceil(goal * 0.4));
+    const reviewWords = unlockedWords.filter(w => w.status === "learning" || w.status === "familiar").slice(0, goal - newWords.length);
     const combined = [...newWords, ...reviewWords];
-    return combined.length > 0 ? combined : wordsDB.slice(0, goal);
-  }, [goal, wordsDB]);
+    return combined.length > 0 ? combined : unlockedWords.slice(0, goal);
+  }, [goal, unlockedWords]);
   
   const learnCount = Math.min(2, Math.ceil(goal * 0.4));
   const [step, setStep] = useState(0);
@@ -3027,7 +3062,7 @@ function WordSmithApp() {
     quizCorrect: 0,
   });
 
-  const [wordsDB, setWordsDB] = useState(INITIAL_WORDS_DB);
+  const [wordsDB, setWordsDB] = useState(ALL_WORDS_DB);
   const [journalEntries, setJournalEntries] = useState([]);
 
   // Modal queue — badge IDs waiting to be shown
@@ -3446,7 +3481,7 @@ function WordSmithApp() {
                 Storage.clear();
                 setOnboarded(false);
                 setGameState({ totalXP:0, streak:0, lastPracticeDate:null, lastOpenDate:null, unlockedBadges:[], badgeSeenModal:[], wordsToday:0, todayDate:null, practiceSessions:0, quizCompleted:0, perfectQuizzes:0, wordleSolves:0, crosswordSolves:0, quizAttempts:0, quizCorrect:0 });
-                setWordsDB(INITIAL_WORDS_DB);
+                setWordsDB(ALL_WORDS_DB);
                 setJournalEntries([]);
               }}
             />
