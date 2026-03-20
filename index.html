@@ -1337,6 +1337,11 @@ const XP = {
   QUADWORD_COMPLETE:   45,
   DAILY_GOAL:          50,
   STREAK_MILESTONE:   100,
+  QUOTE_ADD:            5,
+  QUOTE_EASY:          15,
+  QUOTE_GOOD:          10,
+  QUOTE_HARD:           5,
+  QUOTE_AGAIN:          2,
 };
 
 /* Level table — level is DERIVED from XP, never stored */
@@ -1440,6 +1445,9 @@ const BADGES = [
   // Practice
   { id:"practice_3",  name:"Three-peat",       icon:"⚡", desc:"3 practice sessions", check: s => (s.practiceSessions||0) >= 3 },
   { id:"practice_10", name:"Dedicated",        icon:"⚡", desc:"10 practice sessions",check: s => (s.practiceSessions||0) >= 10 },
+  // Quote Bank
+  { id:"quote_10",    name:"Quote Collector", icon:"💬", desc:"Save 10 quotes",         check: s => (s.quotesAdded||0) >= 10 },
+  { id:"quote_master5",name:"Quote Scholar",  icon:"💬", desc:"Master 5 quotes",        check: s => (s.quotesMastered||0) >= 5 },
 ];
 
 /* Badge check — returns array of newly unlocked badge IDs */
@@ -1461,6 +1469,7 @@ const STORAGE_KEYS = {
   USER:    "wordsmith_user",
   WORDS:   "wordsmith_words",
   JOURNAL: "wordsmith_journal",
+  QUOTES:  "wordsmith_quotes",
 };
 
 const Storage = {
@@ -3442,7 +3451,7 @@ function OnboardingScreen({ onComplete }) {
 /* ════════════════════════════════════════════
    SCREEN: HOME
    ════════════════════════════════════════════ */
-function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges }) {
+function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
   const levelData = getLevelData(gameState.totalXP || 0);
   const user = { name: userPrefs?.name || "Student" };
   const greeting = useMemo(() => {
@@ -3633,9 +3642,41 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges }) {
               <span style={{ fontSize: 16, color: T.muted }}>›</span>
             </div>
           </div>
+          {/* Quote Bank card */}
+          <div
+            onClick={() => onNav("quotebank")}
+            style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: "16px 18px", cursor: "pointer",
+              transition: "all 0.2s ease", marginTop: 10,
+              borderLeft: "3px solid #FFD60A",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: "rgba(255,214,10,0.12)", border: "1px solid rgba(255,214,10,0.25)",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+              }}>💬</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Quote Bank</div>
+                <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
+                  {(quotes || []).length} quote{(quotes || []).length !== 1 ? "s" : ""} saved
+                  {(() => {
+                    const today = todayISO();
+                    const due = (quotes || []).filter(q => {
+                      if (q.status === "new") return true;
+                      if (!q.nextReview) return q.status === "learning";
+                      return q.nextReview <= today;
+                    }).length;
+                    return due > 0 ? ` · ${due} due for review` : "";
+                  })()}
+                </div>
+              </div>
+              <span style={{ fontSize: 16, color: T.muted }}>›</span>
+            </div>
+          </div>
         </div>
-
-        {/* Due for review */}
         {dueWords.length > 0 && (
           <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 18, marginBottom: 20 }}>
             <SectionLabel right={`${dueWords.length} due now`}>Due for Review</SectionLabel>
@@ -3982,7 +4023,7 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
                   <StrengthDots level={w.strength} />
                   <span style={{ fontSize: 16, color: T.dimmed }}>›</span>
                 </div>
-              </div>
+               </div>
             ))}
           </div>
         </div>
@@ -5740,6 +5781,1029 @@ function PalettesScreen({ onNav, wordsDB }) {
 }
 
 /* ════════════════════════════════════════════
+   QUOTE BANK — Constants & Helpers
+   ════════════════════════════════════════════ */
+const QUOTE_THEMES = [
+  "disillusionment","the American Dream","appearance vs reality","ambition","power",
+  "corruption","guilt","fate","morality","violence","loyalty","love","loss",
+  "isolation","identity","justice","revenge","nature","time","memory","class",
+  "gender","war","suffering","hope","deception","honour","madness","redemption","sacrifice",
+];
+
+const QUOTE_TECHNIQUES = [
+  "metaphor","simile","symbolism","irony","dramatic irony","foreshadowing",
+  "personification","alliteration","imagery","juxtaposition","hyperbole","motif",
+  "allegory","pathetic fallacy","soliloquy","aside","repetition","enjambment",
+  "caesura","oxymoron","paradox","rhetorical question","anaphora","sibilance",
+];
+
+const MAX_QUOTE_LENGTH = 500;
+
+/* Generate a unique quote ID */
+const makeQuoteId = () => "q_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+
+/* Check for duplicate quotes (>80% word overlap) */
+const isDuplicateQuote = (newText, existingQuotes) => {
+  const normalise = t => t.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(Boolean);
+  const newWords = normalise(newText);
+  if (newWords.length === 0) return false;
+  return existingQuotes.some(q => {
+    const existWords = new Set(normalise(q.quote));
+    const overlap = newWords.filter(w => existWords.has(w)).length;
+    return overlap / newWords.length > 0.8;
+  });
+};
+
+/* Determine drill stage based on SM-2 repetitions.
+   Stage advances as the student demonstrates recall.
+   Drops back on failure (repetitions resets to 0). */
+const getDrillStage = (quote) => {
+  const reps = quote.repetitions || 0;
+  if (reps <= 1) return 0; // Recognition
+  if (reps <= 3) return 1; // Progressive Cloze
+  if (reps <= 6) return 2; // First-Letter
+  return 3;                 // Type-from-Memory
+};
+
+/* Cloze deletion: blank out ~30% of words, preferring longer/rarer words.
+   Uses a seeded approach based on quote ID for deterministic blanking per session. */
+const generateCloze = (text, quoteId) => {
+  const words = text.split(/\s+/);
+  if (words.length <= 3) return words.map((w, i) => ({ word: w, blanked: i === 0 }));
+  // Score each word: longer = more likely to blank
+  const scored = words.map((w, i) => ({ word: w, idx: i, len: w.replace(/[^a-zA-Z]/g, "").length }));
+  // Sort by length descending, take top 30%
+  const sorted = [...scored].sort((a, b) => b.len - a.len);
+  const blankCount = Math.max(1, Math.round(words.length * 0.3));
+  const blankIndices = new Set(sorted.slice(0, blankCount).map(s => s.idx));
+  return words.map((w, i) => ({ word: w, blanked: blankIndices.has(i) }));
+};
+
+/* First-letter: reduce each word to its first character + punctuation */
+const generateFirstLetter = (text) => {
+  return text.split(/\s+/).map(w => {
+    if (w.length === 0) return w;
+    // Preserve leading punctuation
+    const match = w.match(/^([^a-zA-Z]*)([a-zA-Z])/);
+    if (!match) return w; // pure punctuation
+    return match[1] + match[2] + w.replace(/[a-zA-Z]/g, "_").slice(match[0].length);
+  }).join(" ");
+};
+
+/* Score typed recall: word-by-word accuracy (case-insensitive, ignores punctuation) */
+const scoreRecall = (typed, original) => {
+  const norm = t => t.toLowerCase().replace(/[^a-z\s]/g, "").split(/\s+/).filter(Boolean);
+  const origWords = norm(original);
+  const typedWords = norm(typed);
+  if (origWords.length === 0) return { correct: 0, total: 0, pct: 0 };
+  let correct = 0;
+  origWords.forEach((w, i) => { if (typedWords[i] === w) correct++; });
+  return { correct, total: origWords.length, pct: Math.round((correct / origWords.length) * 100) };
+};
+
+/* ════════════════════════════════════════════
+   SCREEN: QUOTE BANK (List + View)
+   ════════════════════════════════════════════ */
+function QuoteBankScreen({ onNav, quotes, userPrefs }) {
+  const [filterText, setFilterText] = useState("all");
+  const [viewQuote, setViewQuote] = useState(null);
+
+  // Text options from user's selected texts + shared "all"
+  const textOptions = useMemo(() => {
+    const lists = WORD_LISTS.filter(l => !l.shared && (userPrefs.texts || []).includes(l.id));
+    return [{ id: "all", name: "All Texts" }, ...lists];
+  }, [userPrefs.texts]);
+
+  const filtered = useMemo(() => {
+    const sorted = [...quotes].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    if (filterText === "all") return sorted;
+    return sorted.filter(q => q.text === filterText);
+  }, [quotes, filterText]);
+
+  const today = todayISO();
+  const dueCount = quotes.filter(q => {
+    if (q.status === "new") return true;
+    if (!q.nextReview) return q.status === "learning";
+    return q.nextReview <= today;
+  }).length;
+
+  const statusColor = (s) => {
+    if (s === "mastered") return T.green;
+    if (s === "familiar") return T.cyan;
+    if (s === "learning") return T.yellow;
+    return T.muted;
+  };
+
+  // Detail view for a single quote
+  if (viewQuote) {
+    const q = viewQuote;
+    const textInfo = WORD_LISTS.find(l => l.id === q.text);
+    return (
+      <>
+        <StatusBar />
+        <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
+          <div style={{ marginBottom: 20 }}>
+            <BackBtn onClick={() => setViewQuote(null)} label="Quote Bank" />
+          </div>
+          {/* Quote text */}
+          <div style={{
+            background: T.card, border: `1px solid ${T.cardBorder}`,
+            borderRadius: 16, padding: 20, marginBottom: 16,
+            borderLeft: `3px solid ${textInfo?.color || T.accent1}`,
+          }}>
+            <div style={{ fontSize: 16, fontFamily: T.serif, color: T.white, lineHeight: 1.6, fontStyle: "italic" }}>
+              "{q.quote}"
+            </div>
+          </div>
+          {/* Source info */}
+          <div style={{
+            background: T.card, border: `1px solid ${T.cardBorder}`,
+            borderRadius: 16, padding: 16, marginBottom: 16,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 10 }}>Source</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {textInfo && <span style={{ fontSize: 13, color: T.white }}>{textInfo.icon} {textInfo.name}</span>}
+              {q.act && <span style={{ fontSize: 12, color: T.muted }}>· {q.act}</span>}
+              {q.character && <span style={{ fontSize: 12, color: T.muted }}>· {q.character}</span>}
+            </div>
+            {q.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 8, lineHeight: 1.5 }}>{q.context}</div>}
+          </div>
+          {/* Themes & Technique */}
+          {(q.themes?.length > 0 || q.technique) && (
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 16, marginBottom: 16,
+            }}>
+              {q.themes?.length > 0 && (
+                <div style={{ marginBottom: q.technique ? 12 : 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>Themes</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {q.themes.map(t => (
+                      <span key={t} style={{
+                        fontSize: 11, padding: "4px 10px", borderRadius: 12,
+                        background: "rgba(168,85,247,0.15)", color: "rgba(168,85,247,0.9)",
+                        border: "1px solid rgba(168,85,247,0.2)",
+                      }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {q.technique && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>Technique</div>
+                  <span style={{
+                    fontSize: 11, padding: "4px 10px", borderRadius: 12,
+                    background: "rgba(6,214,160,0.15)", color: "rgba(6,214,160,0.9)",
+                    border: "1px solid rgba(6,214,160,0.2)",
+                  }}>{q.technique}</span>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Essay sentence */}
+          {q.essaySentence && (
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 16, marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>Model Essay Sentence</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>{q.essaySentence}</div>
+            </div>
+          )}
+          {/* SM-2 status */}
+          <div style={{
+            background: T.card, border: `1px solid ${T.cardBorder}`,
+            borderRadius: 16, padding: 16, marginBottom: 16,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 4 }}>Memorisation</div>
+                <span style={{ fontSize: 13, color: statusColor(q.status), fontWeight: 600, textTransform: "capitalize" }}>{q.status}</span>
+              </div>
+              <StrengthDots level={q.strength || 0} />
+            </div>
+            {q.nextReview && <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>Next review: {q.nextReview}</div>}
+          </div>
+          {/* Edit button */}
+          <button onClick={() => onNav("quoteadd", { editId: q.id })} style={{
+            width: "100%", padding: "14px 0", borderRadius: 14,
+            background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`,
+            color: T.white, fontSize: 14, fontWeight: 600, fontFamily: T.sans,
+            cursor: "pointer", marginBottom: 40,
+          }}>Edit Quote</button>
+        </div>
+      </>
+    );
+  }
+
+  // List view
+  return (
+    <>
+      <StatusBar />
+      <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <BackBtn onClick={() => onNav("home")} label="Home" />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <h2 style={{ fontSize: 26, fontFamily: T.serif, fontWeight: 700, color: T.white, margin: "0 0 4px" }}>Quote Bank</h2>
+            <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>
+              {quotes.length} quote{quotes.length !== 1 ? "s" : ""} saved
+              {dueCount > 0 && <span style={{ color: T.accent1 }}> · {dueCount} due</span>}
+            </p>
+          </div>
+        </div>
+
+        {/* Practice due quotes button */}
+        {dueCount > 0 && (
+          <button onClick={() => onNav("quotedrill")} style={{
+            width: "100%", padding: "14px 0", borderRadius: 14,
+            background: gradient, border: "none",
+            color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
+            cursor: "pointer", marginBottom: 16,
+          }}>Practice {dueCount} Due Quote{dueCount !== 1 ? "s" : ""}</button>
+        )}
+
+        {/* Filter tabs */}
+        {quotes.length > 0 && (
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 16, WebkitOverflowScrolling: "touch" }}>
+            {textOptions.map(t => (
+              <button key={t.id} onClick={() => setFilterText(t.id)} style={{
+                padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                whiteSpace: "nowrap", cursor: "pointer", fontFamily: T.sans,
+                border: filterText === t.id ? "1px solid rgba(255,107,53,0.4)" : `1px solid ${T.cardBorder}`,
+                background: filterText === t.id ? "rgba(255,107,53,0.12)" : T.card,
+                color: filterText === t.id ? T.accent1 : T.muted,
+              }}>{t.name}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {quotes.length === 0 && (
+          <div style={{
+            background: T.card, border: `1px solid ${T.cardBorder}`,
+            borderRadius: 20, padding: "40px 24px", textAlign: "center", marginBottom: 20,
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>💬</div>
+            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: T.serif, color: T.white, marginBottom: 8 }}>Start Your Quote Bank</div>
+            <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              Add quotes from your set texts as you discover them in class. The app will help you memorise them using spaced repetition — the same science that powers your vocabulary practice.
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.5 }}>
+              Tip: Start with 3–5 quotes your teacher highlights as important. You can always add more later.
+            </div>
+          </div>
+        )}
+
+        {/* Quote list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          {filtered.map(q => {
+            const textInfo = WORD_LISTS.find(l => l.id === q.text);
+            return (
+              <div key={q.id} onClick={() => setViewQuote(q)} style={{
+                background: T.card, border: `1px solid ${T.cardBorder}`,
+                borderRadius: 14, padding: "14px 16px", cursor: "pointer",
+                borderLeft: `3px solid ${textInfo?.color || T.accent1}`,
+                transition: "all 0.2s ease",
+              }}>
+                <div style={{ fontSize: 14, fontFamily: T.serif, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic" }}>
+                  "{q.quote.length > 100 ? q.quote.slice(0, 100) + "…" : q.quote}"
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12, color: T.muted }}>{textInfo?.icon} {textInfo?.name || "Unknown"}</span>
+                    {q.character && <span style={{ fontSize: 11, color: T.dimmed }}>· {q.character}</span>}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: statusColor(q.status), textTransform: "uppercase" }}>{q.status}</span>
+                    <StrengthDots level={q.strength || 0} />
+                  </div>
+                </div>
+              </div>
+            );
+          })} 
+          </div>
+
+        {/* Add Quote FAB */}
+        <button onClick={() => onNav("quoteadd")} style={{
+          position: "fixed", bottom: 80, right: 20, width: 56, height: 56,
+          borderRadius: "50%", background: gradient, border: "none",
+          color: "#fff", fontSize: 28, fontWeight: 400,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", zIndex: 20,
+          boxShadow: "0 4px 20px rgba(255,107,53,0.35)",
+        }}>+</button>
+
+        <div style={{ height: 60 }} />
+      </div>
+    </>
+  );
+}
+
+/* ════════════════════════════════════════════
+   SCREEN: QUOTE ADD / EDIT
+   ════════════════════════════════════════════ */
+function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData }) {
+  const editId = navData?.editId;
+  const existing = editId ? quotes.find(q => q.id === editId) : null;
+
+  const [quoteText, setQuoteText] = useState(existing?.quote || "");
+  const [selectedText, setSelectedText] = useState(existing?.text || "");
+  const [character, setCharacter] = useState(existing?.character || "");
+  const [act, setAct] = useState(existing?.act || "");
+  const [context, setContext] = useState(existing?.context || "");
+  const [themes, setThemes] = useState(existing?.themes || []);
+  const [technique, setTechnique] = useState(existing?.technique || "");
+  const [essaySentence, setEssaySentence] = useState(existing?.essaySentence || "");
+  const [error, setError] = useState("");
+  const [showThemes, setShowThemes] = useState(false);
+  const [showTechniques, setShowTechniques] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const textOptions = useMemo(() => {
+    return WORD_LISTS.filter(l => !l.shared && (userPrefs.texts || []).includes(l.id));
+  }, [userPrefs.texts]);
+
+  const toggleTheme = (t) => {
+    setThemes(prev => {
+      if (prev.includes(t)) return prev.filter(x => x !== t);
+      if (prev.length >= 3) return prev; // max 3
+      return [...prev, t];
+    });
+  };
+
+  const handleSave = () => {
+    const trimmed = quoteText.trim();
+    if (!trimmed) { setError("Quote text is required."); return; }
+    if (trimmed.length > MAX_QUOTE_LENGTH) { setError(`Quote too long (${trimmed.length}/${MAX_QUOTE_LENGTH} chars).`); return; }
+    if (!selectedText) { setError("Please select the source text."); return; }
+
+    // Duplicate check (skip if editing the same quote)
+    const othersQuotes = existing ? quotes.filter(q => q.id !== existing.id) : quotes;
+    if (isDuplicateQuote(trimmed, othersQuotes)) {
+      setError("A very similar quote already exists in your bank.");
+      return;
+    }
+
+    if (existing) {
+      // Update existing
+      setQuotes(prev => prev.map(q => q.id === existing.id ? {
+        ...q,
+        quote: trimmed,
+        text: selectedText,
+        character: character.trim(),
+        act: act.trim(),
+        context: context.trim(),
+        themes,
+        technique,
+        essaySentence: essaySentence.trim(),
+      } : q));
+      onNav("quotebank");
+    } else {
+      // Create new
+      const newQuote = {
+        id: makeQuoteId(),
+        quote: trimmed,
+        text: selectedText,
+        character: character.trim(),
+        act: act.trim(),
+        context: context.trim(),
+        themes,
+        technique,
+        essaySentence: essaySentence.trim(),
+        linkedWords: [],
+        createdAt: todayISO(),
+        strength: 0,
+        status: "new",
+        interval: 0,
+        easeFactor: 2.5,
+        repetitions: 0,
+        nextReview: null,
+        lastReviewed: null,
+      };
+      setQuotes(prev => [...prev, newQuote]);
+      awardXP(XP.QUOTE_ADD, { quotesAdded: ((navData?._quotesAdded) || quotes.length) + 1 });
+      onNav("quotebank");
+    }
+  };
+
+  const handleDelete = () => {
+    if (!existing) return;
+    setQuotes(prev => prev.filter(q => q.id !== existing.id));
+    onNav("quotebank");
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
+    fontFamily: T.sans, color: T.white, border: `1px solid ${T.cardBorder}`,
+    background: "rgba(255,255,255,0.04)", outline: "none", boxSizing: "border-box",
+  };
+
+  const labelStyle = {
+    fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted,
+    textTransform: "uppercase", marginBottom: 6, display: "block",
+  };
+
+  return (
+    <>
+      <StatusBar />
+      <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <BackBtn onClick={() => onNav("quotebank")} label="Quote Bank" />
+        </div>
+        <h2 style={{ fontSize: 22, fontFamily: T.serif, fontWeight: 700, color: T.white, margin: "0 0 20px" }}>
+          {existing ? "Edit Quote" : "Add Quote"}
+        </h2>
+
+        {error && (
+          <div style={{
+            background: "rgba(255,45,85,0.12)", border: "1px solid rgba(255,45,85,0.3)",
+            borderRadius: 12, padding: "10px 14px", marginBottom: 16,
+            fontSize: 13, color: T.accent2,
+          }}>{error}</div>
+        )}
+
+        {/* Quote text */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Quote *</label>
+          <textarea
+            value={quoteText}
+            onChange={e => { setQuoteText(e.target.value); setError(""); }}
+            placeholder="Type or paste the quote here…"
+            rows={4}
+            maxLength={MAX_QUOTE_LENGTH}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontFamily: T.serif }}
+          />
+          <div style={{ fontSize: 11, color: T.dimmed, textAlign: "right", marginTop: 4 }}>{quoteText.length}/{MAX_QUOTE_LENGTH}</div>
+        </div>
+
+        {/* Source text */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Source Text *</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {textOptions.map(t => (
+              <button key={t.id} onClick={() => { setSelectedText(t.id); setError(""); }} style={{
+                padding: "8px 14px", borderRadius: 12, fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: T.sans,
+                border: selectedText === t.id ? `1px solid ${t.color}` : `1px solid ${T.cardBorder}`,
+                background: selectedText === t.id ? `${t.color}20` : T.card,
+                color: selectedText === t.id ? t.color : T.muted,
+              }}>{t.icon} {t.name}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Character */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Character / Speaker</label>
+          <input
+            value={character}
+            onChange={e => setCharacter(e.target.value)}
+            placeholder="e.g. Nick Carraway, Lady Macbeth"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Act / Chapter */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Chapter / Act / Scene</label>
+          <input
+            value={act}
+            onChange={e => setAct(e.target.value)}
+            placeholder="e.g. Chapter 9, Act III Scene 4"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Context */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Context (what's happening)</label>
+          <textarea
+            value={context}
+            onChange={e => setContext(e.target.value)}
+            placeholder="Briefly describe the scene or moment…"
+            rows={2}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </div>
+
+        {/* Themes */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Themes (up to 3)</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {themes.map(t => (
+              <button key={t} onClick={() => toggleTheme(t)} style={{
+                padding: "5px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                background: "rgba(168,85,247,0.2)", color: "#A855F7",
+                border: "1px solid rgba(168,85,247,0.35)", cursor: "pointer",
+              }}>{t} ×</button>
+            ))}
+            <button onClick={() => setShowThemes(!showThemes)} style={{
+              padding: "5px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+              background: T.card, color: T.muted, border: `1px solid ${T.cardBorder}`,
+              cursor: "pointer",
+            }}>{showThemes ? "Close" : "+ Add Theme"}</button>
+          </div>
+          {showThemes && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, maxHeight: 120, overflowY: "auto" }}>
+              {QUOTE_THEMES.filter(t => !themes.includes(t)).map(t => (
+                <button key={t} onClick={() => toggleTheme(t)} style={{
+                  padding: "4px 10px", borderRadius: 10, fontSize: 11,
+                  background: "rgba(255,255,255,0.04)", color: T.muted,
+                  border: `1px solid ${T.cardBorder}`, cursor: "pointer",
+                }}>{t}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Technique */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Literary Technique</label>
+          <button onClick={() => setShowTechniques(!showTechniques)} style={{
+            ...inputStyle, textAlign: "left", cursor: "pointer",
+            color: technique ? T.white : T.dimmed,
+          }}>
+            {technique || "Select a technique…"}
+          </button>
+          {showTechniques && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, maxHeight: 120, overflowY: "auto" }}>
+              {QUOTE_TECHNIQUES.map(t => (
+                <button key={t} onClick={() => { setTechnique(t); setShowTechniques(false); }} style={{
+                  padding: "5px 10px", borderRadius: 10, fontSize: 11,
+                  background: technique === t ? "rgba(6,214,160,0.2)" : "rgba(255,255,255,0.04)",
+                  color: technique === t ? T.cyan : T.muted,
+                  border: technique === t ? "1px solid rgba(6,214,160,0.3)" : `1px solid ${T.cardBorder}`,
+                  cursor: "pointer",
+                }}>{t}</button>
+              ))}
+              {technique && (
+                <button onClick={() => { setTechnique(""); setShowTechniques(false); }} style={{
+                  padding: "5px 10px", borderRadius: 10, fontSize: 11,
+                  background: "rgba(255,45,85,0.12)", color: T.accent2,
+                  border: "1px solid rgba(255,45,85,0.2)", cursor: "pointer",
+                }}>Clear</button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Essay sentence */}
+        <div style={{ marginBottom: 24 }}>
+          <label style={labelStyle}>Model Essay Sentence</label>
+          <textarea
+            value={essaySentence}
+            onChange={e => setEssaySentence(e.target.value)}
+            placeholder="Write a sentence showing how to embed this quote in an essay…"
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </div>
+
+        {/* Save button */}
+        <button onClick={handleSave} style={{
+          width: "100%", padding: "16px 0", borderRadius: 14,
+          background: gradient, border: "none",
+          color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
+          cursor: "pointer", marginBottom: 12,
+        }}>{existing ? "Save Changes" : "Add to Quote Bank"}</button>
+
+        {/* Delete button (edit mode only) */}
+        {existing && !confirmDelete && (
+          <button onClick={() => setConfirmDelete(true)} style={{
+            width: "100%", padding: "14px 0", borderRadius: 14,
+            background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
+            color: T.accent2, fontSize: 14, fontWeight: 600, fontFamily: T.sans,
+            cursor: "pointer", marginBottom: 40,
+          }}>Delete Quote</button>
+        )}
+        {existing && confirmDelete && (
+          <div style={{
+            display: "flex", gap: 10, marginBottom: 40,
+          }}>
+            <button onClick={handleDelete} style={{
+              flex: 1, padding: "14px 0", borderRadius: 14,
+              background: "rgba(255,45,85,0.15)", border: "1px solid rgba(255,45,85,0.3)",
+              color: T.accent2, fontSize: 14, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
+            }}>Confirm Delete</button>
+            <button onClick={() => setConfirmDelete(false)} style={{
+              flex: 1, padding: "14px 0", borderRadius: 14,
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              color: T.muted, fontSize: 14, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
+            }}>Cancel</button>
+          </div>
+        )}
+
+        {!existing && <div style={{ height: 40 }} />}
+      </div>
+    </>
+  );
+}
+
+/* ════════════════════════════════════════════
+   SCREEN: QUOTE DRILL (Memorisation Practice)
+   ════════════════════════════════════════════ */
+function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
+  const today = todayISO();
+
+  // Get due quotes — memoised at mount time only
+  const dueQuotes = useMemo(() => {
+    return quotes.filter(q => {
+      if (q.status === "new") return true;
+      if (!q.nextReview) return q.status === "learning";
+      return q.nextReview <= today;
+    });
+  }, []); // intentionally stable at mount
+
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [phase, setPhase] = useState("drill"); // "drill" | "done"
+
+  // Drill-specific state
+  const [clozeAnswers, setClozeAnswers] = useState({});
+  const [typedText, setTypedText] = useState("");
+  const [showReveal, setShowReveal] = useState(false);
+  const [lastScore, setLastScore] = useState(null);
+
+  const current = dueQuotes[currentIdx];
+  const drillStage = current ? getDrillStage(current) : 0;
+  const textInfo = current ? WORD_LISTS.find(l => l.id === current.text) : null;
+  const totalDue = dueQuotes.length;
+
+  // Precompute cloze and first-letter data for current quote (hooks-safe — always called)
+  const clozeData = useMemo(() => {
+    if (!current || drillStage !== 1) return [];
+    return generateCloze(current.quote, current.id);
+  }, [current?.id, current?.quote, drillStage]);
+
+  const firstLetterHint = useMemo(() => {
+    if (!current || drillStage !== 2) return "";
+    return generateFirstLetter(current.quote);
+  }, [current?.id, current?.quote, drillStage]);
+
+  // Reset drill state when moving to next quote
+  const resetDrill = () => {
+    setClozeAnswers({});
+    setTypedText("");
+    setShowReveal(false);
+    setLastScore(null);
+  };
+
+  const handleRate = (rating) => {
+    if (!current) return;
+    const sm2Result = applySM2(current, rating, today);
+    setQuotes(prev => prev.map(q => q.id === current.id ? { ...q, ...sm2Result } : q));
+
+    // Award XP (no streak impact per spec)
+    const xpMap = { 3: XP.QUOTE_EASY, 2: XP.QUOTE_GOOD, 1: XP.QUOTE_HARD, 0: XP.QUOTE_AGAIN };
+    const updatedQuotes = quotes.map(q => q.id === current.id ? { ...q, ...sm2Result } : q);
+    const masteredCount = updatedQuotes.filter(q => q.status === "mastered").length;
+    awardXP(xpMap[rating] ?? XP.QUOTE_GOOD, { quotesMastered: masteredCount });
+
+    // Move to next or done
+    if (currentIdx + 1 >= totalDue) {
+      setPhase("done");
+    } else {
+      setCurrentIdx(currentIdx + 1);
+      resetDrill();
+    }
+  };
+
+  // Done screen
+  if (phase === "done" || !current) {
+    return (
+      <>
+        <StatusBar />
+        <div style={{ padding: "0 20px", position: "relative", zIndex: 1, textAlign: "center", paddingTop: 60 }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+          <div style={{ fontSize: 22, fontWeight: 700, fontFamily: T.serif, color: T.white, marginBottom: 8 }}>
+            {totalDue === 0 ? "No Quotes Due" : "All Done!"}
+          </div>
+          <div style={{ fontSize: 14, color: T.muted, marginBottom: 32, lineHeight: 1.5 }}>
+            {totalDue === 0
+              ? "Add some quotes to your Quote Bank, then come back here to practise memorising them."
+              : `You practised ${totalDue} quote${totalDue !== 1 ? "s" : ""}. Keep it up!`
+            }
+          </div>
+          <button onClick={() => onNav("quotebank")} style={{
+            padding: "14px 32px", borderRadius: 14,
+            background: gradient, border: "none",
+            color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans, cursor: "pointer",
+          }}>Back to Quote Bank</button>
+        </div>
+      </>
+    );
+  }
+
+  const drillLabels = ["Recognition", "Cloze Deletion", "First Letter", "Type from Memory"];
+
+  // Cloze helper
+  const allClozeFilled = drillStage === 1 && clozeData.filter(c => c.blanked).every((_, i) => (clozeAnswers[i] || "").trim().length > 0);
+
+  const checkCloze = () => {
+    const blanked = clozeData.filter(c => c.blanked);
+    const results = {};
+    let correct = 0;
+    blanked.forEach((c, i) => {
+      const answer = (clozeAnswers[i] || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+      const expected = c.word.toLowerCase().replace(/[^a-z]/g, "");
+      const isCorrect = answer === expected;
+      results[i] = isCorrect;
+      if (isCorrect) correct++;
+    });
+    setLastScore({ results, correct, total: blanked.length, pct: Math.round((correct / blanked.length) * 100) });
+    setShowReveal(true);
+  };
+
+  const checkTyped = () => {
+    const score = scoreRecall(typedText, current.quote);
+    setLastScore(score);
+    setShowReveal(true);
+  };
+
+  return (
+    <>
+      <StatusBar />
+      <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <BackBtn onClick={() => onNav("quotebank")} label="Quote Bank" />
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.muted }}>{currentIdx + 1} / {totalDue}</span>
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 8,
+              background: "rgba(168,85,247,0.15)", color: "#A855F7",
+            }}>{drillLabels[drillStage]}</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 2,
+              width: `${((currentIdx + 1) / totalDue) * 100}%`,
+              background: gradient, transition: "width 0.3s ease",
+            }} />
+          </div>
+        </div>
+
+        {/* Source info */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: textInfo?.color || T.muted }}>{textInfo?.icon} {textInfo?.name}</span>
+          {current.character && <span style={{ fontSize: 12, color: T.dimmed }}>· {current.character}</span>}
+          {current.act && <span style={{ fontSize: 12, color: T.dimmed }}>· {current.act}</span>}
+        </div>
+
+        {/* DRILL STAGE 0: Recognition */}
+        {drillStage === 0 && (
+          <div>
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 20, marginBottom: 16,
+              borderLeft: `3px solid ${textInfo?.color || T.accent1}`,
+            }}>
+              <div style={{ fontSize: 16, fontFamily: T.serif, color: T.white, lineHeight: 1.7, fontStyle: "italic" }}>
+                "{current.quote}"
+              </div>
+            </div>
+            {!showReveal ? (
+              <button onClick={() => setShowReveal(true)} style={{
+                width: "100%", padding: "14px 0", borderRadius: 14,
+                background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`,
+                color: T.white, fontSize: 14, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
+                marginBottom: 16,
+              }}>Reveal Context & Themes</button>
+            ) : (
+              <div style={{
+                background: T.card, border: `1px solid ${T.cardBorder}`,
+                borderRadius: 14, padding: 16, marginBottom: 16,
+              }}>
+                {current.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginBottom: 8, lineHeight: 1.5 }}>{current.context}</div>}
+                {current.themes?.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {current.themes.map(t => (
+                      <span key={t} style={{
+                        fontSize: 10, padding: "3px 8px", borderRadius: 8,
+                        background: "rgba(168,85,247,0.15)", color: "rgba(168,85,247,0.85)",
+                      }}>{t}</span>
+                    ))}
+                  </div>
+                )}
+                {current.technique && (
+                  <span style={{
+                    display: "inline-block", marginTop: 6,
+                    fontSize: 10, padding: "3px 8px", borderRadius: 8,
+                    background: "rgba(6,214,160,0.15)", color: "rgba(6,214,160,0.85)",
+                  }}>{current.technique}</span>
+                )}
+              </div>
+            )}
+            {showReveal && <div style={{ fontSize: 13, color: T.muted, textAlign: "center", marginBottom: 12 }}>How well do you know this quote?</div>}
+          </div>
+        )}
+
+        {/* DRILL STAGE 1: Progressive Cloze */}
+        {drillStage === 1 && (
+          <div>
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 20, marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 14, fontFamily: T.serif, color: T.white, lineHeight: 2.2 }}>
+                {(() => {
+                  let blankIdx = 0;
+                  return clozeData.map((c, i) => {
+                    if (!c.blanked) return <span key={i}>{c.word} </span>;
+                    const bi = blankIdx++;
+                    const isChecked = lastScore?.results !== undefined;
+                    const isCorrect = lastScore?.results?.[bi];
+                    return (
+                      <span key={i} style={{ display: "inline-block", marginRight: 4 }}>
+                        <input
+                          value={clozeAnswers[bi] || ""}
+                          onChange={e => setClozeAnswers(prev => ({ ...prev, [bi]: e.target.value }))}
+                          disabled={isChecked}
+                          placeholder="___"
+                          style={{
+                            width: Math.max(60, c.word.length * 10),
+                            padding: "2px 6px", borderRadius: 6, fontSize: 14,
+                            fontFamily: T.serif, textAlign: "center",
+                            background: isChecked
+                              ? (isCorrect ? "rgba(52,199,89,0.15)" : "rgba(255,45,85,0.15)")
+                              : "rgba(255,255,255,0.08)",
+                            border: isChecked
+                              ? `1px solid ${isCorrect ? "rgba(52,199,89,0.4)" : "rgba(255,45,85,0.4)"}`
+                              : `1px solid ${T.cardBorder}`,
+                            color: T.white, outline: "none",
+                          }}
+                        />{" "}
+                      </span>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+            {!showReveal ? (
+              <button onClick={checkCloze} disabled={!allClozeFilled} style={{
+                width: "100%", padding: "14px 0", borderRadius: 14,
+                background: allClozeFilled ? gradient : "rgba(255,255,255,0.06)",
+                border: allClozeFilled ? "none" : `1px solid ${T.cardBorder}`,
+                color: allClozeFilled ? "#fff" : T.dimmed,
+                fontSize: 14, fontWeight: 600, fontFamily: T.sans,
+                cursor: allClozeFilled ? "pointer" : "default", marginBottom: 16,
+              }}>Check Answers</button>
+            ) : (
+              <div style={{ textAlign: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: lastScore?.pct >= 80 ? T.green : lastScore?.pct >= 50 ? T.yellow : T.accent2, marginBottom: 4 }}>
+                  {lastScore?.correct} / {lastScore?.total} correct ({lastScore?.pct}%)
+                </div>
+                <div style={{ fontSize: 12, color: T.muted }}>Rate your recall below</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DRILL STAGE 2: First-Letter */}
+        {drillStage === 2 && (
+          <div>
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 20, marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>First Letters</div>
+              <div style={{ fontSize: 16, fontFamily: "monospace", color: "rgba(168,85,247,0.8)", lineHeight: 1.8, letterSpacing: 1 }}>
+                {firstLetterHint}
+              </div>
+            </div>
+            <textarea
+              value={typedText}
+              onChange={e => setTypedText(e.target.value)}
+              placeholder="Type the full quote from memory…"
+              rows={4}
+              disabled={showReveal}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
+                fontFamily: T.serif, color: T.white, border: `1px solid ${T.cardBorder}`,
+                background: "rgba(255,255,255,0.04)", outline: "none", resize: "vertical",
+                lineHeight: 1.6, boxSizing: "border-box", marginBottom: 12,
+              }}
+            />
+            {!showReveal ? (
+              <button onClick={checkTyped} disabled={!typedText.trim()} style={{
+                width: "100%", padding: "14px 0", borderRadius: 14,
+                background: typedText.trim() ? gradient : "rgba(255,255,255,0.06)",
+                border: typedText.trim() ? "none" : `1px solid ${T.cardBorder}`,
+                color: typedText.trim() ? "#fff" : T.dimmed,
+                fontSize: 14, fontWeight: 600, fontFamily: T.sans,
+                cursor: typedText.trim() ? "pointer" : "default", marginBottom: 16,
+              }}>Check</button>
+            ) : (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ textAlign: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: lastScore?.pct >= 80 ? T.green : lastScore?.pct >= 50 ? T.yellow : T.accent2 }}>
+                    {lastScore?.pct}% accurate
+                  </span>
+                </div>
+                <div style={{
+                  background: T.card, border: `1px solid ${T.cardBorder}`,
+                  borderRadius: 12, padding: 14, marginBottom: 8,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>CORRECT QUOTE</div>
+                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
+                </div>
+                <div style={{ fontSize: 12, color: T.muted, textAlign: "center" }}>Rate your recall below</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DRILL STAGE 3: Type from Memory */}
+        {drillStage === 3 && (
+          <div>
+            <div style={{
+              background: T.card, border: `1px solid ${T.cardBorder}`,
+              borderRadius: 16, padding: 16, marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>
+                Recall this quote from memory
+              </div>
+              {current.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{current.context}</div>}
+              {current.themes?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                  {current.themes.map(t => (
+                    <span key={t} style={{
+                      fontSize: 10, padding: "2px 7px", borderRadius: 6,
+                      background: "rgba(168,85,247,0.12)", color: "rgba(168,85,247,0.7)",
+                    }}>{t}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <textarea
+              value={typedText}
+              onChange={e => setTypedText(e.target.value)}
+              placeholder="Type the quote from memory…"
+              rows={4}
+              disabled={showReveal}
+              style={{
+                width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
+                fontFamily: T.serif, color: T.white, border: `1px solid ${T.cardBorder}`,
+                background: "rgba(255,255,255,0.04)", outline: "none", resize: "vertical",
+                lineHeight: 1.6, boxSizing: "border-box", marginBottom: 12,
+              }}
+            />
+            {!showReveal ? (
+              <button onClick={checkTyped} disabled={!typedText.trim()} style={{
+                width: "100%", padding: "14px 0", borderRadius: 14,
+                background: typedText.trim() ? gradient : "rgba(255,255,255,0.06)",
+                border: typedText.trim() ? "none" : `1px solid ${T.cardBorder}`,
+                color: typedText.trim() ? "#fff" : T.dimmed,
+                fontSize: 14, fontWeight: 600, fontFamily: T.sans,
+                cursor: typedText.trim() ? "pointer" : "default", marginBottom: 16,
+              }}>Check</button>
+            ) : (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ textAlign: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: lastScore?.pct >= 80 ? T.green : lastScore?.pct >= 50 ? T.yellow : T.accent2 }}>
+                    {lastScore?.pct}% accurate
+                  </span>
+                </div>
+                <div style={{
+                  background: T.card, border: `1px solid ${T.cardBorder}`,
+                  borderRadius: 12, padding: 14, marginBottom: 8,
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>CORRECT QUOTE</div>
+                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
+                </div>
+                <div style={{ fontSize: 12, color: T.muted, textAlign: "center" }}>Rate your recall below</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rating buttons — shown after drill reveal for all stages */}
+        {showReveal && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 40 }}>
+            {[
+              { rating: 0, label: "Again", color: T.accent2, bg: "rgba(255,45,85,0.12)" },
+              { rating: 1, label: "Hard", color: T.yellow, bg: "rgba(255,214,10,0.12)" },
+              { rating: 2, label: "Good", color: T.cyan, bg: "rgba(6,214,160,0.12)" },
+              { rating: 3, label: "Easy", color: T.green, bg: "rgba(52,199,89,0.12)" },
+            ].map(({ rating, label, color, bg }) => (
+              <button key={rating} onClick={() => handleRate(rating)} style={{
+                padding: "14px 0", borderRadius: 14, border: `1px solid ${color}30`,
+                background: bg, color, fontSize: 14, fontWeight: 700,
+                fontFamily: T.sans, cursor: "pointer",
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ════════════════════════════════════════════
    SETTINGS SCREEN
    ════════════════════════════════════════════ */
 /* ════════════════════════════════════════════
@@ -5963,10 +7027,13 @@ function WordSmithApp() {
     quadWordSolves: 0,
     quizAttempts: 0,
     quizCorrect: 0,
+    quotesAdded: 0,
+    quotesMastered: 0,
   });
 
   const [wordsDB, setWordsDB] = useState(ALL_WORDS_DB);
   const [journalEntries, setJournalEntries] = useState([]);
+  const [quotes, setQuotes] = useState([]);
 
   // ── Visible words: filtered by user's selected texts ──
   // Shared categories (analysis, tone, sensory, movement, etc.) always included.
@@ -6023,6 +7090,8 @@ function WordSmithApp() {
         quadWordSolves:   savedUser.quadWordSolves   ?? 0,
         quizAttempts:     savedUser.quizAttempts     ?? 0,
         quizCorrect:      savedUser.quizCorrect      ?? 0,
+        quotesAdded:      savedUser.quotesAdded      ?? 0,
+        quotesMastered:   savedUser.quotesMastered   ?? 0,
       });
       setOnboarded(true);
     }
@@ -6037,6 +7106,9 @@ function WordSmithApp() {
     }
 
     if (savedJournal) setJournalEntries(savedJournal);
+
+    const savedQuotes = Storage.get(STORAGE_KEYS.QUOTES);
+    if (savedQuotes) setQuotes(savedQuotes);
 
     // Mark load complete — allows persist effects to begin writing
     loadedRef.current = true;
@@ -6060,6 +7132,12 @@ function WordSmithApp() {
     Storage.set(STORAGE_KEYS.JOURNAL, journalEntries);
   }, [journalEntries]);
 
+  // ── Persist quotes whenever they change ──
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    Storage.set(STORAGE_KEYS.QUOTES, quotes);
+  }, [quotes]);
+
   // ── Persist game state + user prefs whenever they change ──
   const persistGameState = useCallback((gs, prefs) => {
     Storage.set(STORAGE_KEYS.USER, {
@@ -6080,6 +7158,8 @@ function WordSmithApp() {
       quadWordSolves:   gs.quadWordSolves,
       quizAttempts:     gs.quizAttempts,
       quizCorrect:      gs.quizCorrect,
+      quotesAdded:      gs.quotesAdded,
+      quotesMastered:   gs.quotesMastered,
     });
   }, []);
 
@@ -6317,7 +7397,7 @@ function WordSmithApp() {
         <OnboardingScreen onComplete={(prefs) => {
           setUserPrefs(prefs);
           setOnboarded(true);
-          Storage.set(STORAGE_KEYS.USER, { ...prefs, totalXP:0, streak:0, lastPracticeDate:null, unlockedBadges:[], badgeSeenModal:[], wordsToday:0, todayDate:todayISO(), practiceSessions:0, quizCompleted:0, perfectQuizzes:0, wordleSolves:0, crosswordSolves:0, quadWordSolves:0, quizAttempts:0, quizCorrect:0 });
+          Storage.set(STORAGE_KEYS.USER, { ...prefs, totalXP:0, streak:0, lastPracticeDate:null, unlockedBadges:[], badgeSeenModal:[], wordsToday:0, todayDate:todayISO(), practiceSessions:0, quizCompleted:0, perfectQuizzes:0, wordleSolves:0, crosswordSolves:0, quadWordSolves:0, quizAttempts:0, quizCorrect:0, quotesAdded:0, quotesMastered:0 });
         }} />
       ) : (
         <PhoneFrame>
@@ -6328,6 +7408,7 @@ function WordSmithApp() {
               wordsDB={visibleWordsDB}
               gameState={gameState}
               badges={BADGES}
+              quotes={quotes}
             />
           )}
           {screen === "words" && <WordListsScreen onNav={handleNav} wordsDB={visibleWordsDB} userPrefs={userPrefs} />}
@@ -6387,6 +7468,27 @@ function WordSmithApp() {
           {screen === "palettes" && (
             <PalettesScreen onNav={handleNav} wordsDB={wordsDB} />
           )}
+          {screen === "quotebank" && (
+            <QuoteBankScreen onNav={handleNav} quotes={quotes} userPrefs={userPrefs} />
+          )}
+          {screen === "quoteadd" && (
+            <QuoteAddScreen
+              onNav={handleNav}
+              quotes={quotes}
+              setQuotes={setQuotes}
+              awardXP={awardXP}
+              userPrefs={userPrefs}
+              navData={navData}
+            />
+          )}
+          {screen === "quotedrill" && (
+            <QuoteDrillScreen
+              onNav={handleNav}
+              quotes={quotes}
+              setQuotes={setQuotes}
+              awardXP={awardXP}
+            />
+          )}
           {screen === "settings" && (
             <SettingsScreen
               onNav={handleNav}
@@ -6398,9 +7500,10 @@ function WordSmithApp() {
               onReset={() => {
                 Storage.clear();
                 setOnboarded(false);
-                setGameState({ totalXP:0, streak:0, lastPracticeDate:null, lastOpenDate:null, unlockedBadges:[], badgeSeenModal:[], wordsToday:0, todayDate:null, practiceSessions:0, quizCompleted:0, perfectQuizzes:0, wordleSolves:0, crosswordSolves:0, quadWordSolves:0, quizAttempts:0, quizCorrect:0 });
+                setGameState({ totalXP:0, streak:0, lastPracticeDate:null, lastOpenDate:null, unlockedBadges:[], badgeSeenModal:[], wordsToday:0, todayDate:null, practiceSessions:0, quizCompleted:0, perfectQuizzes:0, wordleSolves:0, crosswordSolves:0, quadWordSolves:0, quizAttempts:0, quizCorrect:0, quotesAdded:0, quotesMastered:0 });
                 setWordsDB(ALL_WORDS_DB);
                 setJournalEntries([]);
+                setQuotes([]);
               }}
             />
           )}
