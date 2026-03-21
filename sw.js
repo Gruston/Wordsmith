@@ -2,13 +2,13 @@
    Strategy: Cache-first for app shell, network-first for CDN scripts.
    Version bump here triggers cache refresh on update.
 */
-const CACHE_NAME = 'wordsmith-v1';
+const CACHE_NAME = 'wordsmith-v2';
 
 /* Files to cache immediately on install (the app shell) */
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  './',
+  './index.html',
+  './manifest.json',
 ];
 
 /* CDN resources to cache when first fetched */
