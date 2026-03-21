@@ -1,14 +1,14 @@
-/* Wordsmith Service Worker
+/* WordSmith Service Worker
    Strategy: Cache-first for app shell, network-first for CDN scripts.
    Version bump here triggers cache refresh on update.
 */
-const CACHE_NAME = 'wordsmith-v2';
+const CACHE_NAME = 'wordsmith-v4-light';
 
 /* Files to cache immediately on install (the app shell) */
 const PRECACHE_URLS = [
-  './',
-  './index.html',
-  './manifest.json',
+  '/Wordsmith/',
+  '/Wordsmith/index.html',
+  '/Wordsmith/manifest.json',
 ];
 
 /* CDN resources to cache when first fetched */
