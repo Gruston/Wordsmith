@@ -1258,14 +1258,26 @@ const speak = (word) => {
   } catch (e) { /* silent fail */ }
 };
 
-/* Shuffle helper — Fisher-Yates */
-const shuffle = (arr) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+
+/* Fuzzy word match for fill-blank quizzes.
+   Accepts the answer if the student typed the base form,
+   a common inflection, or the exact word. Case-insensitive.
+   e.g. "juxtapose" matches "juxtaposes", "smouldering" matches "smoulder" */
+const fuzzyWordMatch = (input, answer) => {
+  const a = input.trim().toLowerCase().replace(/[^a-z]/g, "");
+  const b = answer.trim().toLowerCase().replace(/[^a-z]/g, "");
+  if (a === b) return true;
+  if (a.length < 3) return false;
+  // Strip common suffixes from both and compare stems
+  const stem = (w) => {
+    return w
+      .replace(/(tion|sion|ness|ment|ence|ance|ity|ous|ive|ful|less|ing|ised|ized)$/, "")
+      .replace(/(ally|ely|ily|ly)$/, "")
+      .replace(/(ies)$/, "y")
+      .replace(/(es|ed|er|en)$/, "")
+      .replace(/s$/, "");
+  };
+  return stem(a) === stem(b);
 };
 
 /* ════════════════════════════════════════════
@@ -1470,6 +1482,7 @@ const STORAGE_KEYS = {
   WORDS:   "wordsmith_words",
   JOURNAL: "wordsmith_journal",
   QUOTES:  "wordsmith_quotes",
+  PUZZLE_PREFS: "wordsmith_puzzle_prefs",
 };
 
 const Storage = {
@@ -1561,212 +1574,465 @@ function LevelUpModal({ levelData, onDismiss }) {
 
 /* Valid 5-letter words for Wordle validation — comprehensive list */
 const VALID_5 = new Set([
-  /* Literary / vocab puzzle words */
-  "hubris","motif","irony","foils","verse","elegy","decay","moral","light",
-  "dream","ghost","feast","greed","power","guilt","blood","crown","night",
-  "death","peace","pride","anger","shame","truth","faith","valor","image",
-  "chaos","quest","abuse","guile","trope","dirge","farce","grief","prose",
-  "drama","theme","mirth","regal","reign","vigor","piety","guise","qualm",
-  "siege","brawl","brood","bliss","vigor","wrath","scorn","exile","forge",
-  /* Popular Wordle starters & common guesses */
-  "adieu","audio","raise","stare","crane","slate","trace","crate","arise",
-  "irate","siren","ouija","canoe","anime","sauce","mouse","house","plant",
-  "stone","train","piano","ocean","opera","union","media","radio","video",
-  "tiger","lemon","melon","grape","olive","mango","beach","whale","eagle",
-  "otter","llama","bison","heron","raven","robin","viper","coral","maple",
-  "cedar","birch","oaken","roast","steam","grill","feast","bread","sweet",
-  "spicy","crisp","flaky","chewy","tangy","bland","stale","fresh","riper",
-  /* Common English 5-letter words A */
-  "about","above","acute","admit","adopt","after","again","agent","agree",
-  "alarm","album","alert","alien","align","alive","alley","allow","alone",
-  "along","alter","among","ample","angel","angle","angry","annex","antic",
-  "anvil","aorta","apart","apple","apply","apron","arena","argue","armor",
-  "aroma","array","arrow","arson","asset","atlas","attic","avoid","award",
-  "aware","awful","axial",
-  /* B */
-  "badge","basic","basis","batch","beach","beard","beast","began","begin",
-  "being","below","bench","berry","birth","black","blade","blame","blank",
-  "blast","blaze","bleak","bleed","blend","bless","blind","blink","bliss",
-  "blitz","bloat","block","bloke","bloom","blown","bluff","blunt","blurt",
-  "board","boast","bonus","boost","booth","bound","brace","braid","brain",
-  "brake","brand","brass","brave","bravo","bread","break","breed","briar",
-  "brick","bride","brief","brine","bring","brink","brisk","broad","broil",
-  "broke","brook","broth","brown","brush","brute","buddy","budge","buggy",
-  "build","bulge","bully","bunch","bunny","burst","buyer",
-  /* C */
-  "cabin","cable","camel","candy","canny","cargo","carry","catch","cater",
-  "cause","cedar","chain","chair","chalk","champ","chant","charm","chart",
-  "chase","cheap","cheat","check","cheek","cheer","chess","chest","chick",
-  "chief","child","chili","chill","china","chirp","choir","chord","chunk",
-  "churn","cider","cigar","cinch","civic","civil","claim","clamp","clash",
-  "clasp","class","clean","clear","clerk","click","cliff","climb","cling",
-  "cloak","clock","clone","close","cloth","cloud","clown","coach","coast",
-  "cobra","cocoa","comet","comic","coral","couch","could","count","coupe",
-  "court","cover","covet","crack","craft","cramp","crane","crash","crate",
-  "crave","crawl","crazy","creak","cream","creek","creep","crest","crime",
-  "crisp","cross","crowd","cruel","crush","crust","curve","cycle",
-  /* D */
-  "daily","dairy","dance","dealt","debug","decal","decor","decoy","deity",
-  "delay","delta","demon","denim","dense","depot","depth","derby","detox",
-  "devil","diary","digit","diner","disco","ditch","dizzy","dodge","doing",
-  "donor","donut","doubt","dough","draft","drain","drake","drank","drape",
-  "drawn","dread","dress","dried","drift","drill","drink","drive","droit",
-  "drone","drool","droop","drown","dryly","dully","dummy","dunce","dusty",
-  "dying",
-  /* E */
-  "eager","early","earth","easel","eater","edict","eight","elect","elite",
-  "elope","elude","email","ember","emcee","empty","endow","enemy","enjoy",
-  "enter","entry","envoy","epoch","equal","equip","erase","error","erupt",
-  "essay","ether","ethic","evade","event","every","evict","evoke","exact",
-  "exalt","excel","exert","exist","expat","expel","extra",
-  /* F */
-  "fable","facet","fagot","faint","fairy","false","fancy","fatal","fault",
-  "fauna","feast","feign","feint","ferry","fetch","fetch","fever","fiber",
-  "field","fiend","fifth","fifty","fight","filth","final","finch","first",
-  "fishy","fixed","fizzy","flame","flank","flare","flash","flask","fleas",
-  "fleet","flesh","flick","fling","flint","float","flock","flood","floor",
-  "flora","floss","flour","flout","flowy","fluff","fluid","fluke","flung",
-  "flush","flute","focal","focus","foggy","folly","force","forge","forgo",
-  "forte","forth","forum","found","foxes","frame","frank","fraud","freak",
-  "freed","fresh","friar","front","frost","froze","frugal","fruit","fully",
-  "fungi","funky","funny","furry","fussy","fuzzy",
-  /* G */
-  "gaffe","gauge","gauze","gavel","geeky","giant","giddy","given","gizmo",
-  "gland","glare","glass","glaze","gleam","glean","glide","glint","globe",
-  "gloom","glory","gloss","glove","glyph","gnome","going","goose","gorge",
-  "gouge","gourd","grace","grade","grain","grand","grant","grape","graph",
-  "grasp","grass","grate","grave","gravy","graze","great","greed","green",
-  "greet","grime","grind","gripe","groan","groom","grope","gross","group",
-  "grove","growl","grown","gruel","gruff","grunt","guard","guess","guest",
-  "guide","guild","guise","gulch","gummy","guppy","gusty",
-  /* H */
-  "habit","haiku","happy","hardy","harsh","haste","hasty","hatch","haunt",
-  "haven","hazel","heart","heave","heavy","hedge","heist","hello","hence",
-  "heron","hilly","hinge","hippo","hitch","hoard","hobby","holly","homer",
-  "honey","honor","horse","hoist","hotel","hound","house","hover","human",
-  "humid","humor","humus","hunky","hurry","hyena","hyper",
-  /* I */
-  "icing","ideal","idiot","igloo","image","imbue","imply","impel","inane",
-  "index","indie","inept","inert","infer","ingot","inner","input","inter",
-  "intro","ionic","irate","ivory","issue",
-  /* J-K */
-  "jaunt","jazzy","jelly","jewel","jiffy","jimmy","joint","joker","jolly",
-  "joust","judge","juice","juicy","jumbo","jumpy","juror","kayak","kebab",
-  "khaki","kinky","kiosk","knack","knead","kneel","knelt","knife","knock",
-  "known",
-  /* L */
-  "label","labor","lager","lance","large","laser","latch","later","latex",
-  "lathe","laugh","layer","leach","leafy","leaky","learn","lease","leash",
-  "least","leave","ledge","legal","level","lever","light","lilac","limbo",
-  "linen","liner","lingo","liver","llama","lobby","local","lodge","lofty",
-  "logic","loner","loose","lorry","loser","lousy","lover","lower","loyal",
-  "lucid","lucky","lumen","lunch","lunar","lunge","lusty","lying","lyric",
-  /* M */
-  "macho","macro","magic","magma","major","maker","manga","mango","mania",
-  "manor","maple","march","marry","marsh","mason","match","maxim","mayor",
-  "mealy","media","mercy","merge","merit","merry","messy","metal","meter",
-  "midst","might","mimic","mince","miner","minor","minus","mirth","miser",
-  "misty","mitre","mixed","mixer","model","modem","mogul","moist","molar",
-  "money","month","moose","moral","moron","morph","mossy","motel","motif",
-  "motor","motto","mould","moult","mound","mount","mourn","mouse","mouth",
-  "moved","movie","mower","mucus","muddy","mural","murky","mushy","music",
-  "musty","muted","myrrh","myths",
-  /* N */
-  "naive","nanny","nasal","nasty","natal","naval","navel","needy","nerve",
-  "never","newly","niche","night","nimby","ninja","nitty","noble","noise",
-  "nomad","nonce","north","notch","noted","novel","nudge","nurse","nutty",
-  "nylon","nymph",
-  /* O */
-  "oasis","occur","ocean","offer","often","olive","onset","opera","optic",
-  "orbit","order","organ","other","otter","ought","outer","outdo","outwit",
-  "ovary","ovate","owned","owner","oxide","ozone",
-  /* P */
-  "paced","padre","pagan","paint","panel","panic","paper","parka","parse",
-  "party","pasta","paste","patch","patio","pause","peach","pearl","pedal",
-  "penal","pence","penny","perch","peril","perky","petal","petty","phase",
-  "phone","photo","piano","piece","piggy","pilot","pinch","pitch","pixel",
-  "pizza","place","plaid","plain","plane","plank","plant","plate","plaza",
-  "plead","pleat","plier","pluck","plumb","plume","plump","plunge","plush",
-  "poach","point","poise","polar","poker","polka","polyp","poppy","porch",
-  "poser","pouch","poult","pound","power","prank","prawn","press","price",
-  "pride","prime","print","prior","prism","privy","prize","probe","prodigy",
-  "prone","prong","proof","prose","proud","prove","prowl","prude","prune",
-  "psalm","pulse","punch","pupil","puppy","purge","purse","pushy","pygmy",
-  /* Q */
-  "quack","qualm","quart","quasi","queen","query","quest","queue","quick",
-  "quiet","quill","quirk","quite","quota","quote",
-  /* R */
-  "rabbi","radar","radio","rainy","raise","rally","ranch","range","rapid",
-  "rarer","rash","ratio","raven","razor","reach","react","ready","realm",
-  "rebel","recap","recon","redox","refer","reign","relax","relay","relic",
-  "remit","renew","repay","repel","reply","rerun","resin","retro","revue",
-  "rhyme","ridge","rider","rifle","right","rigid","rinse","ripen","risky",
-  "ritzy","rival","river","rivet","roast","robot","rocky","rogue","rouge",
-  "rough","round","rouse","route","rover","rowdy","royal","rugby","ruins",
-  "ruler","rumba","rumor","rural","rusty",
-  /* S */
-  "sadly","saint","salad","salty","salsa","salve","sandy","saner","sapid",
-  "satin","sauce","sauna","savor","scale","scalp","scamp","scant","scare",
-  "scarf","scary","scene","scent","scoff","scone","scoop","scope","score",
-  "scorn","scout","scowl","scram","scrap","screw","scrub","sedan","seize",
-  "sense","serif","serve","setup","seven","sever","shade","shady","shaft",
-  "shake","shall","shame","shape","share","shark","sharp","shave","shawl",
-  "shear","sheen","sheep","sheer","sheet","shelf","shell","shift","shine",
-  "shiny","shire","shirt","shock","shore","short","shout","shove","shown",
-  "showy","shrub","shrug","shuck","shunt","sight","sigma","since","sinew",
-  "siren","sixty","sized","skate","sketc","skill","skimp","skull","skunk",
-  "slain","slang","slash","slate","slave","sleek","sleep","sleet","slice",
-  "slide","slime","slimy","sling","slink","slope","sloth","slump","slung",
-  "slurp","smart","smash","smear","smell","smelt","smile","smirk","smite",
-  "smith","smoke","smoky","snack","snail","snake","snare","sneak","sneer",
-  "snide","snore","snort","snout","snowy","soapy","solar","solve","sonic",
-  "sorry","south","space","spade","spare","spark","spawn","speak","spear",
-  "speck","speed","spell","spend","spent","spice","spicy","spike","spill",
-  "spine","spite","splat","split","spoke","spoof","spook","spoon","sport",
-  "spout","spray","spree","sprig","spunk","spurn","squad","squat","squid",
-  "stack","staff","stage","stain","stair","stake","stale","stalk","stall",
-  "stamp","stand","stank","stare","stark","start","stash","state","stays",
-  "steak","steal","steam","steel","steep","steer","stern","stick","stiff",
-  "still","sting","stink","stint","stock","stoic","stoke","stole","stomp",
-  "stone","stood","stool","stoop","store","stork","storm","story","stout",
-  "stove","strap","straw","stray","strip","strum","strut","stuck","study",
-  "stuff","stump","stung","stunk","stunt","style","suave","sugar","suite",
-  "sulky","sunny","super","surge","sushi","swamp","swarm","swear","sweat",
-  "sweep","sweet","swept","swift","swill","swine","swing","swirl","swoop",
-  "sword","swore","sworn","swung","syrup",
-  /* T */
-  "tabby","table","taboo","tacit","tacky","taffy","taint","taken","tally",
-  "talon","tango","tangy","taper","tapir","tardy","taste","tasty","taunt",
-  "tawny","teach","tears","tease","teeth","tempo","tenet","tenor","tense",
-  "tepid","terms","terra","terse","theft","their","theme","there","these",
-  "thick","thief","thigh","thing","think","third","thorn","those","three",
-  "threw","throw","thrum","thud","thumb","tiara","tidal","tiger","tight",
-  "timer","timid","tinny","tipsy","tired","titan","title","toast","today",
-  "token","tonic","topaz","topic","torch","total","totem","touch","tough",
-  "towel","tower","toxic","trace","track","trade","trail","train","trait",
-  "tramp","trash","trawl","treat","trend","tress","triad","trial","tribe",
-  "trick","tried","trill","trite","troll","troop","trope","trout","truce",
-  "truck","truly","trump","trunk","truss","trust","tubal","tulip","tumor",
-  "tuner","tunic","turbo","tutor","twang","tweak","tweed","tweet","twice",
-  "twill","twine","twirl","twist","tying",
-  /* U-V */
-  "udder","ulcer","ultra","umbra","uncle","under","undid","undue","unfit",
-  "unify","union","unite","unity","unlit","until","unwed","upper","upset",
-  "urban","usage","usher","usual","utter","uvula",
-  "vague","valid","value","valve","vapor","vault","vaunt","vegan","veins",
-  "veldt","venom","venue","verge","verse","vibes","vigor","vinyl","viola",
-  "viper","viral","virus","visor","visit","vista","vital","vivid","vixen",
-  "vocal","vodka","vogue","voice","voila","voter","vouch","vowel","vying",
-  /* W */
-  "wacky","wager","wagon","waist","waste","watch","water","waver","waxen",
-  "weary","weave","wedge","weedy","weigh","weird","whack","whale","wheat",
-  "wheel","where","which","while","whine","whirl","whisk","white","whole",
-  "whose","widen","width","wield","windy","witty","woman","woods","wordy",
-  "world","worry","worse","worst","worth","would","wound","wrack","wrath",
-  "wreak","wreck","wring","write","wrong","wrote","wrung",
-  /* X-Y-Z */
-  "xerox","yacht","yearn","yeast","yield","young","yours","youth","zebra",
-  "zesty","zippy","zodic","zonal",
+  /* Common English 5-letter words + literary vocabulary — 4,574 words */
+  "aalii","abaca","aback","abaft","abamp","abase","abash","abate","abbey","abbot",
+  "abeam","abele","abhor","abide","abmho","abode","abohm","abort","about","above",
+  "abuse","abuzz","abysm","abyss","acari","accel","acerb","achoo","acini","acorn",
+  "acrid","actin","actor","acute","adage","adapt","addax","adder","addle","adept",
+  "adieu","adios","adman","admen","admin","admit","admix","adobe","adopt","adore",
+  "adorn","adown","adult","adust","aecia","aedes","aegis","aerie","aeron","affix",
+  "afire","afoot","afore","afoul","afrit","after","again","agama","agape","agate",
+  "agave","agent","agger","aggie","aggro","agile","aging","agist","agita","aglet",
+  "agley","aglow","agone","agony","agora","agree","agric","agron","ahead","aided",
+  "aioli","aisle","aitch","akene","alack","alarm","alary","alate","album","alder",
+  "aldol","aleph","alert","algae","algal","algid","algin","algor","alias","alibi",
+  "alien","align","alike","alkyd","alkyl","allay","allee","alley","allot","allow",
+  "alloy","allyl","aloft","aloha","aloin","alone","along","aloof","aloud","alpha",
+  "altar","alter","alula","amahs","amain","amass","amaze","amber","ambit","amble",
+  "ambry","amend","ament","amice","amide","amigo","amine","amino","amiss","amity",
+  "amnio","among","amour","ample","amuse","ancon","anear","anele","anent","angel",
+  "anger","angle","angry","angst","anile","anima","anime","anion","anise","ankhs",
+  "ankle","ankus","annal","annex","annoy","annul","anode","anole","antic","antiq",
+  "antre","antsy","anvil","aorta","apace","apart","apeak","apery","aphid","aphis",
+  "apian","apish","apnea","aport","appel","apple","apply","apron","apsis","apter",
+  "arbor","archt","ardeb","ardor","areal","areca","arena","arete","argal","argil",
+  "argol","argon","argot","argue","ariel","arise","armet","armor","aroid","aroma",
+  "arose","arras","array","arris","arrow","arsed","arsis","arson","artel","artsy",
+  "ascot","ascus","asdic","aside","asked","askew","aspen","aspic","assai","assay",
+  "asset","assoc","aster","astir","atilt","atlas","atman","atoll","atomy","atone",
+  "atony","atria","atrip","attar","attic","audio","audit","auger","aught","augur",
+  "aulic","aulos","aural","aurar","auric","aurum","auxin","avail","avast","avens",
+  "avert","avian","avoid","avoir","await","awake","award","aware","awash","awful",
+  "awoke","axial","axiom","ayahs","azide","azine","azoic","azole","azote","azure",
+  "babel","babul","baccy","bacon","badge","bagel","baggy","bairn","baiza","baize",
+  "baked","baker","balas","baldy","baler","balky","balls","bally","balmy","balsa",
+  "banal","bands","bandy","banjo","banns","barde","barge","baric","barit","barmy",
+  "baron","barre","barye","basal","bases","basic","basil","basin","basis","basso",
+  "baste","batch","bated","bathe","baths","batik","baton","batty","bawdy","bayou",
+  "bazar","beach","beads","beady","beamy","beano","beard","bears","beast","beaut",
+  "bebop","bedel","bedew","bedim","beech","beefy","beery","befit","befog","began",
+  "begat","beget","begin","begot","begum","begun","beige","being","belay","belch",
+  "belga","belie","belle","bells","belly","below","bench","bendy","benne","benny",
+  "beret","berry","berth","beryl","beset","besom","besot","betel","beths","betta",
+  "bevel","bevvy","bezel","bhaji","bhang","bialy","bible","bicep","biddy","bidet",
+  "bield","bifid","bight","bigot","bijou","biker","bilbo","bilge","bills","billy",
+  "bimah","bimbo","binal","binge","bingo","biome","biota","biped","bipod","birch",
+  "birds","birth","bison","bitch","biter","bitty","black","blade","blahs","blain",
+  "blame","bland","blank","blare","blase","blast","blate","blaze","bleak","blear",
+  "bleat","bleed","bleep","blend","bless","blimp","blind","blini","blink","bliss",
+  "blitz","bloat","block","bloke","blond","blood","bloom","bloop","blown","blowy",
+  "bluet","bluey","bluff","blunt","blurb","blurt","blush","board","boart","boast",
+  "boats","bobby","bodge","boffo","bogey","boggy","bogie","bogle","bogon","bogus",
+  "boink","bolus","bombe","bonce","bonds","boned","boner","bones","bongo","bonne",
+  "bonny","bonus","bonze","booby","books","boong","boost","booth","boots","booty",
+  "booze","boozy","borak","borax","bored","borer","boric","borne","boron","bosky",
+  "bosom","boson","bossy","botch","botel","bothy","bough","boule","bound","bouse",
+  "bovid","bowed","bowel","bower","bowse","boxer","boyar","boyla","brace","brach",
+  "bract","braid","brail","brain","brake","brand","brant","brash","brass","brave",
+  "bravo","brawl","brawn","braxy","braze","bread","break","bream","brede","breed",
+  "brent","breve","bribe","brick","bride","brief","brier","brill","brine","bring",
+  "brink","briny","brisk","broad","broch","brock","broil","broke","bronc","brood",
+  "brook","broom","brose","broth","brown","bruin","bruit","brume","brunt","brush",
+  "brute","bubal","bubba","bucko","buddy","budge","bueno","buffo","buggy","bugle",
+  "build","built","bulge","bulgy","bulky","bulla","bully","bumph","bumpy","bunch",
+  "bunco","bunny","buran","burbs","buret","burgh","burin","burka","burke","burly",
+  "burns","burnt","burro","burry","bursa","burse","burst","busby","bused","bushy",
+  "busty","butch","buteo","butte","butty","butut","butyl","buxom","buyer","bwana",
+  "bylaw","byway","cabal","cabby","cabin","cable","cabob","cacao","cache","cacti",
+  "cadet","cadge","cadre","caged","cages","cagey","caird","cairn","calla","calls",
+  "calve","calyx","camel","cameo","campo","campy","canal","candy","caner","canna",
+  "canny","canoe","canon","canso","canst","canto","cants","canty","caper","capes",
+  "capon","caput","carat","carbs","carer","caret","cargo","carny","carob","carol",
+  "carom","carpi","carry","carse","carte","carve","cased","cases","caste","catch",
+  "cater","catty","cauda","caulk","cause","caves","cavie","cavil","cease","cecal",
+  "cecum","cedar","ceder","ceiba","celeb","cella","cello","cells","celom","cense",
+  "cento","cents","ceorl","ceria","ceric","cesar","cesta","chafe","chaff","chain",
+  "chair","chalk","champ","chant","chaos","chape","chard","chare","charm","charr",
+  "chart","chary","chase","chasm","cheap","cheat","check","cheek","cheep","cheer",
+  "chela","chemo","chert","chess","chest","chevy","chewy","chiao","chick","chico",
+  "chide","chief","child","chili","chill","chimb","chime","chimp","china","chine",
+  "chink","chino","chips","chirk","chirm","chirp","chirr","chive","chivy","chock",
+  "choir","choke","choli","chomp","chook","chord","chore","chose","chron","chuck",
+  "chufa","chuff","chump","chunk","churl","churn","churr","chute","chyle","chyme",
+  "cider","cigar","cilia","cimex","cinch","circa","cirri","cisco","civet","civic",
+  "civil","clack","clade","claim","clamp","clang","clank","claro","clary","clash",
+  "clasp","class","clave","clavi","clean","clear","cleat","cleek","cleft","clepe",
+  "clerk","click","cliff","climb","clime","cline","cling","clink","clips","cloak",
+  "clock","clomb","clomp","clone","clonk","close","cloth","cloud","clout","clove",
+  "clown","cluck","clump","clung","clunk","clvii","clxii","clxiv","clxix","clxvi",
+  "coach","coact","coaly","coast","coati","coats","cobia","coble","cobra","cocci",
+  "cocky","cocoa","coder","codex","codon","cogon","coign","coley","colic","colly",
+  "colon","color","colza","combe","combo","comdg","comet","comfy","comic","comma",
+  "compo","conch","condo","cones","conga","conic","contd","conte","conto","cooee",
+  "cooks","coomb","copal","copay","copra","copse","coral","corer","corgi","coria",
+  "corky","cornu","corny","corps","corse","cosec","coset","costa","coste","cotta",
+  "couch","cough","could","count","coupe","court","couth","coven","cover","covet",
+  "covey","covin","cower","coxae","coypu","cozen","craal","crack","craft","crake",
+  "cramp","crane","crank","crape","craps","crapy","crash","crass","crate","crave",
+  "crawl","craze","crazy","creak","cream","credo","creed","creek","creel","creep",
+  "creme","crepe","crept","cress","crest","crick","crier","crime","crimp","crine",
+  "crisp","croak","crock","croft","crone","cronk","crony","crook","croon","crops",
+  "crore","cross","croup","crowd","crown","croze","cruck","crude","cruel","cruet",
+  "cruft","crumb","crump","cruse","crush","crust","crwth","crypt","cryst","cubby",
+  "cubeb","cuber","cubic","cubit","cuddy","culch","culet","culex","cully","culpa",
+  "cumin","cupel","cupid","cuppa","curch","curdy","cured","curer","curet","curia",
+  "curie","curio","curly","curry","curse","curve","curvy","cusec","cushy","cutch",
+  "cutey","cutie","cutin","cutis","cutty","cutup","cycad","cycle","cylix","cymar",
+  "cynic","cyton","dacha","daddy","daffy","daily","dairy","daisy","dally","daman",
+  "damar","dance","dandy","danio","darer","daric","darky","dated","dater","dates",
+  "datum","daube","daunt","davit","dazed","dding","dealt","deary","death","debag",
+  "debit","debug","debus","debut","decaf","decal","decay","decor","decoy","dedal",
+  "deeds","deify","deign","deist","deity","dekko","delay","delft","delta","delve",
+  "demit","demon","demur","denar","denim","denom","dense","depot","depth","derby",
+  "deriv","derma","derry","deter","detox","deuce","devil","dewan","dhobi","dhole",
+  "dhoti","diary","diazo","dices","dicey","dicot","dicta","didst","dight","digit",
+  "dildo","dilly","dinar","diner","dines","dinge","dingo","dingy","dinky","diode",
+  "dippy","dipso","dirge","dirty","disco","dishy","ditch","ditsy","ditto","ditty",
+  "divan","diver","divot","divvy","diwan","dixie","dizen","dizzy","dobby","dobla",
+  "dobra","dobro","dodge","dodgy","doggo","doggy","dogie","dogma","doily","doing",
+  "dolce","dolly","dolor","donee","donga","donna","donne","donor","doors","doozy",
+  "doper","dopey","dorky","dorty","doses","doter","dotty","doubt","douce","dough",
+  "douma","douse","dowdy","dowel","dower","dowie","downy","dowry","dowse","doyen",
+  "dozen","draff","draft","drain","drake","drama","drank","drape","drawl","drawn",
+  "dread","dream","drear","dregs","dress","dried","drier","drift","drill","drink",
+  "drive","droid","droit","droll","drone","drool","droop","drops","dross","drove",
+  "drown","druid","drunk","drupe","druse","dryad","dryer","ducal","ducat","duchy",
+  "ducky","ducts","dulia","dully","dulse","dumbo","dummy","dumpy","dunce","dunno",
+  "duomo","duper","duple","duppy","durra","durst","durum","dusky","dusty","dutch",
+  "duvet","dwarf","dweeb","dwell","dwelt","dying","eager","eagle","eagre","early",
+  "earns","earth","easel","eaten","eater","ebony","eclat","edema","edger","edges",
+  "edict","edify","educe","educt","eerie","egest","egret","eider","eidos","eight",
+  "eikon","eject","eland","elate","elbow","elder","elect","elegy","elemi","elfin",
+  "elide","elite","elope","elude","elute","elver","elves","email","embay","embed",
+  "ember","embow","embus","emcee","emend","emery","emmer","emmet","emoji","emote",
+  "empty","enact","enate","endow","endue","enema","enemy","engin","enjoy","ennui",
+  "ensue","enter","entry","envoi","envoy","eosin","epact","ephah","ephod","ephor",
+  "epoch","epode","epoxy","equal","equip","equiv","erase","erect","ergot","erode",
+  "erose","error","eruct","erugo","erupt","esker","essay","ester","estop","ether",
+  "ethic","ethos","ethyl","etude","evade","event","evert","every","evict","evite",
+  "evoke","exact","exalt","excel","exeat","exert","exile","exine","exist","expat",
+  "expel","extol","extra","exude","exult","exurb","eyrir","fable","faces","facet",
+  "faddy","fadge","faena","fagot","faint","fairy","faith","faker","fakir","falls",
+  "false","fancy","fango","fanny","fanon","faqir","farad","farce","farci","farcy",
+  "farms","fatal","fates","fatso","fatty","fatwa","faugh","fault","fauna","fauve",
+  "favor","favus","fazed","fears","feast","fecal","feces","fecit","feeds","feeze",
+  "feign","feint","felid","fella","felly","felon","femme","femur","fence","fenny",
+  "feoff","feral","feria","fermi","ferny","ferry","fetal","fetch","fetid","fetor",
+  "fetus","feuar","fever","fewer","fiber","fiche","fichu","ficus","fidge","field",
+  "fiend","fiery","fifer","fifth","fifty","fight","filar","filch","filer","files",
+  "filet","fills","filly","filmy","filth","filum","final","finch","finds","finer",
+  "fines","finis","finny","fired","firer","firms","firry","first","firth","fishy",
+  "fitch","fitly","fixed","fixer","fizzy","fjeld","fjord","flack","flail","flair",
+  "flake","flaky","flame","flank","flare","flash","flask","flawy","fleam","fleck",
+  "fleet","flesh","flick","flier","fling","flint","flirt","flite","float","flock",
+  "flong","flood","floor","flora","flory","floss","flour","flout","flown","fluff",
+  "fluid","fluke","fluky","flume","flump","flung","flunk","fluor","flush","flute",
+  "fluty","flyby","flyte","foamy","focal","focus","foehn","foggy","foils","foist","folia",
+  "folic","folie","folio","folly","footy","foray","forby","force","fordo","forge",
+  "forgo","forme","forms","forte","forth","forty","forum","fossa","fosse","found",
+  "fount","fovea","foyer","frack","frail","frame","franc","frank","fraud","freak",
+  "fremd","frena","fresh","friar","frill","frisk","frith","fritz","frize","frizz",
+  "frock","frond","frons","front","frore","frosh","frost","froth","frown","froze",
+  "fruit","frump","fryer","fubsy","fucus","fudge","fugal","fuggy","fugue","fully",
+  "fungi","fungo","funky","funny","furan","furor","furry","furze","furzy","fusee",
+  "fusil","fussy","fusty","futon","fuzzy","gabby","gable","gadid","gaffe","gaily",
+  "galah","galea","galop","gamba","games","gamic","gamin","gamma","gammy","gamut",
+  "ganef","ganja","ganof","gappy","gassy","gates","gator","gaudy","gauge","gaunt",
+  "gauss","gauze","gauzy","gavel","gawky","gazer","gecko","geeky","geese","gelid",
+  "gemma","gemmy","gemot","genes","genet","genic","genie","genii","genip","genit",
+  "genoa","genre","genro","genus","geode","geoid","gerah","germy","gesso","getup",
+  "ghazi","ghost","ghoul","ghyll","giant","giddy","gigot","gigue","gimel","gimme",
+  "gimpy","ginny","gipon","girls","girly","girth","given","giver","gives","gizmo",
+  "glace","glade","glair","gland","glans","glare","glary","glass","glaze","gleam",
+  "glean","glebe","glede","gleet","glide","glint","glitz","gloam","gloat","globe",
+  "gloom","glory","gloss","glove","gloze","gluey","glume","gluon","glyph","gnarl",
+  "gnash","gnome","goats","godly","gofer","going","golem","golly","gonad","goner",
+  "gonif","gonna","gonzo","goods","goody","gooey","goofy","goose","goosy","gopak",
+  "goral","gorge","gorse","goths","gotta","gouge","gourd","gouty","gowan","goyim",
+  "grace","grade","graft","grail","grain","grand","grant","grape","graph","grasp",
+  "grass","grate","grave","gravy","graze","great","grebe","greed","green","greet",
+  "gride","grief","grift","grill","grime","grimy","grind","gripe","grips","grist",
+  "grith","grits","groan","groat","groin","groom","grope","gross","grosz","group",
+  "grout","grove","growl","grown","gruel","gruff","grume","grump","grunt","guaco",
+  "guano","guard","guava","guess","guest","guide","guild","guile","guilt","guise",
+  "gulag","gulch","gules","gully","gumbo","gumma","gummy","gunge","gungy","gunky",
+  "gunny","guppy","gurge","gushy","gussy","gusto","gusty","gutsy","gutta","gutty",
+  "guyot","gypsy","gyral","gyron","gyrus","habit","hacek","hadst","hafiz","haiku",
+  "hairy","hajes","hajji","hakim","halal","halls","halon","halve","hamal","hammy",
+  "hamza","hance","hands","handy","haole","happy","hardy","harem","harms","harpy",
+  "harry","harsh","haste","hasty","hatch","hater","hates","haugh","haulm","haunt",
+  "haven","haver","havoc","hawse","hazan","hazel","hazer","hdqrs","heads","heady",
+  "heard","heart","heath","heave","heavy","heder","hedge","hefty","heist","helix",
+  "hello","helot","helve","hemal","hemic","hemin","hence","henge","henna","henry",
+  "herby","heron","hertz","heths","hewer","hexad","hexyl","hider","hides","highs",
+  "hight","hijab","hiker","hills","hilly","hilum","hinge","hinny","hippo","hippy",
+  "hirer","hitch","hoard","hoars","hoary","hobby","hocus","hogan","hoick","hoist",
+  "hokey","hokku","hokum","holes","holey","holly","homer","homey","honer","honey",
+  "honky","honor","hooch","hooey","hooks","hooky","hoped","hopes","horah","horal",
+  "horde","horme","horny","horol","horse","horst","hosta","hotel","hough","hound",
+  "houri","house","hovel","hover","howdy","hubby","huffy","hulky","human","humic",
+  "humid","humor","humph","humpy","humus","hunch","hunky","hurds","hurry","hurst",
+  "husky","hussy","hutch","hydra","hydro","hyena","hying","hymen","hyoid","hyper",
+  "hypha","hyrax","hyson","iambi","ichor","icily","icing","ictus","ideal","idiom",
+  "idiot","idler","idyll","igloo","ihram","ileac","ileal","ileum","ileus","iliac",
+  "ilium","illus","image","imago","imbue","imide","imine","immix","impel","imply",
+  "inane","inbox","incur","incus","indef","index","indic","indie","induc","inept",
+  "inert","infer","infin","infra","ingle","ingot","inion","inkle","inner","innit",
+  "input","instr","intel","inter","intro","inure","inurn","ioctl","iodic","ionic",
+  "irade","irate","irony","irreg","islet","issei","issue","istle","itchy","ivory",
+  "ixtle","izard","jabot","jacal","jaded","jaggy","jakes","jalap","jammy","japan",
+  "jaunt","jazzy","jeans","jebel","jello","jelly","jemmy","jenny","jerid","jerky",
+  "jerry","jetty","jewel","jiffy","jihad","jimmy","jingo","jinni","jivey","jocko",
+  "joint","joist","joker","jokey","jolly","jolty","jorum","joule","joust","jowly",
+  "judge","jugal","jugum","juice","juicy","julep","jumbo","jumpy","junco","junta",
+  "jupon","jural","jurat","jurel","juror","jutty","kafir","kaiak","kalif","kalpa",
+  "kanji","kanzu","kaphs","kapok","kappa","kaput","karat","karma","karst","kasha",
+  "kauri","kayak","kazoo","kebab","kedge","keeps","kelly","kenaf","kendo","kente",
+  "kerne","ketch","kevel","khaki","kheda","khoum","kiang","kicky","kiddo","kills",
+  "kinda","kinds","kings","kinin","kinky","kiosk","kitty","klong","kloof","kluge",
+  "klutz","knack","knave","knead","kneel","knees","knell","knelt","knife","knish",
+  "knock","knoll","knots","knout","known","knurl","koala","koine","kooky","kopje",
+  "korma","kraal","kraft","krait","kraut","krill","krona","krone","kroon","kudos",
+  "kudzu","kukri","kulak","kurus","kvass","kylix","label","labia","labor","laden",
+  "ladle","lagan","lager","laird","laity","lakhs","lamia","lanai","lance","lands",
+  "lanky","lapel","lapin","lapse","larch","lardy","lares","large","largo","larum",
+  "larva","laser","lasso","latch","later","latex","lathe","lathi","laths","lathy",
+  "latke","latte","laugh","layer","layup","lazar","leach","leads","leafy","leaky",
+  "leapt","learn","lease","leash","least","leave","ledge","leech","leery","lefty",
+  "legal","leges","leggy","legit","leman","lemma","lemme","lemon","lemur","lenis",
+  "lento","leone","leper","lepta","lethe","letup","levee","level","lever","levin",
+  "lewis","lexis","liana","liard","libel","libra","licit","liege","lifer","ligan",
+  "liger","light","liked","liken","lilac","limbo","limen","limey","limit","lindy",
+  "lined","linen","liner","lines","lingo","linin","linty","lipid","lippy","lisle",
+  "litas","liter","lithe","litho","liven","liver","lives","livid","livre","llama",
+  "llano","loach","loads","loamy","loath","lobar","lobby","local","locum","locus",
+  "loden","lodge","loess","lofty","logan","loggy","logia","logic","login","logon",
+  "lolly","loner","longe","longs","looby","looks","loony","loopy","loose","loppy",
+  "loran","loris","lorry","losel","loser","lotic","lotto","lotus","lough","louis",
+  "loupe","louse","lousy","loved","lover","loves","lovey","lower","lowly","loyal",
+  "lubra","lucid","lucky","lucre","ludic","luffa","lumen","lumpy","lunar","lunch",
+  "lunge","lungi","lupus","lurch","lurex","lurgy","lurid","lushy","lusty","lxvii",
+  "lying","lymph","lynch","lyric","lysin","lysis","lyssa","lytic","lytta","macaw",
+  "macho","macle","macro","madam","mafia","magic","magma","magus","maize","major",
+  "maker","malar","males","malls","malty","mamba","mambo","mamey","mamma","mammy",
+  "manat","manga","mange","mango","mangy","mania","manic","manky","manly","manna",
+  "manor","manse","manta","manuf","maple","march","marge","maria","marka","marry",
+  "marsh","maser","mason","massy","match","mates","matey","matin","matte","matzo",
+  "maund","mauve","maven","mavis","maxim","maybe","mayor","mayst","mealy","meant",
+  "meany","meaty","mecca","medal","media","medic","meiny","melee","melic","melon",
+  "mercy","merge","merit","merle","merry","mesic","mesne","meson","messy","metal",
+  "meter","meths","metic","metis","metro","mezzo","micro","middy","midge","midst",
+  "miffy","might","mikva","milch","miler","miles","milia","milit","milky","mills",
+  "mimes","mimic","mince","minds","miner","mines","mingy","minim","minke","minor",
+  "minty","minus","mirin","mirth","mirza","misdo","miser","missy","misty","miter",
+  "mitis","mixed","mixer","mneme","mocha","modal","model","modem","moggy","mogul",
+  "mohur","moire","moist","molal","molar","moldy","moles","molly","mommy","monad",
+  "monas","monde","money","mongo","monte","month","mooch","moody","moony","moose",
+  "moped","moper","mopey","moral","moray","morel","mores","moron","morph","morse",
+  "mosey","mossy","motel","motet","moths","mothy","motif","motor","motte","motto",
+  "mound","mount","mourn","mouse","mousy","mouth","moved","mover","moves","movie",
+  "mower","moxie","mucin","mucky","mucor","mucro","mucus","muddy","mudra","mufti",
+  "muggy","mujik","mulch","mulct","muley","mulla","multi","mummy","mumps","munch",
+  "mural","murex","murky","murre","mushy","music","musky","mussy","musty","muzak",
+  "muzzy","myall","mycol","myrrh","myths","nabob","nacho","nacre","nadir","naevi",
+  "naiad","naira","naive","naked","naker","nakfa","named","names","nance","nancy",
+  "nanny","nappe","nappy","nares","naris","narky","nasal","nasty","natal","natch",
+  "nates","natty","naval","navar","navel","navig","navvy","nawab","neath","needs",
+  "needy","negro","negus","neigh","nelly","neper","neral","nerdy","nerve","nervy",
+  "netty","neume","never","nevus","newel","newly","newsy","nexus","ngwee","niche",
+  "nidus","niece","niffy","nifty","nigga","night","nihil","nimbi","nimby","ninja",
+  "ninny","ninon","ninth","nippy","nisei","nisus","niter","nitid","nitro","nitty",
+  "nival","nobby","noble","nodal","noddy","nodus","nohow","noise","noisy","nomad",
+  "nonce","nonet","nooky","noose","noria","north","noses","notch","noted","notes",
+  "notum","novae","novel","noway","nubby","nudge","numen","numis","nurse","nutty",
+  "nyala","nylon","nymph","oakum","oases","oasis","oater","oaths","obeah","obeli",
+  "obese","objet","oboli","occas","occur","ocean","ocher","ocker","ocrea","octad",
+  "octal","octan","octet","oculi","odeon","odeum","odium","offal","offer","often",
+  "ogham","ogive","ogler","ohmic","okapi","oldie","oleic","olein","oleum","olive",
+  "ology","omasa","omber","omega","onion","onset","ontic","oomph","ootid","opahs",
+  "opera","opine","opium","optic","orang","orate","orbit","order","oread","organ",
+  "oriel","orlop","ornis","orris","osier","osmic","other","ottar","otter","ought",
+  "ouija","ounce","ouphe","ousel","outdo","outer","outgo","outre","outta","ouzel",
+  "ovary","ovate","overt","ovine","ovoid","ovolo","ovule","owlet","owned","owner",
+  "oxbow","oxide","oxime","ozone","pacer","pacey","pacha","paddy","padre","paean",
+  "paeon","pagan","paged","pager","pages","paint","paisa","paleo","palmy","palsy",
+  "pampa","panda","panel","panga","panic","panne","pansy","panto","papal","paper",
+  "pappy","parch","parer","pares","pareu","parka","parky","parol","parry","parse",
+  "party","parve","pasha","pashm","passe","pasta","paste","pasty","patch","paths",
+  "patin","patio","patsy","patty","pause","pavan","paved","pavid","pavis","payed",
+  "payee","payer","peace","peach","peaky","pearl","peart","peaty","pecan","pedal",
+  "peeve","pekan","pekoe","penal","pence","penis","penna","penne","penni","penny",
+  "peony","peppy","perch","perdu","peril","perky","perry","perse","pesky","pesto",
+  "pesty","petal","peter","petit","petty","pewee","pewit","phage","phase","pheon",
+  "phial","phish","phlox","phone","phony","photo","phyla","phyle","piano","picky",
+  "picot","picul","piece","pieta","piety","piggy","piker","pilaf","pilch","pilei",
+  "piles","pills","pilot","pinch","pines","piney","pinko","pinna","pinny","pinon",
+  "pinta","pinto","pinup","pious","piper","pipes","pipit","pique","pirog","piste",
+  "pitch","piths","pithy","piton","pitta","pivot","pixel","pixie","pizza","place",
+  "plage","plaid","plain","plait","plane","plank","plant","plash","plasm","plate",
+  "platy","playa","plaza","plead","pleas","pleat","plebe","plena","plica","ploce",
+  "plonk","plots","pluck","plumb","plume","plump","plumy","plunk","plush","poach",
+  "pocky","poddy","poesy","pogey","pogge","poilu","point","poise","poker","pokey",
+  "polar","poles","polio","polis","polit","polka","polyp","polys","pommy","ponce",
+  "poncy","ponds","pooch","poohs","pooka","poppa","poppy","popup","porch","porgy",
+  "porky","porno","posed","poser","poses","posit","posse","potto","potty","pouch",
+  "poult","pound","pouty","power","prana","prang","prank","prase","prate","prawn",
+  "preen","presa","press","prexy","price","prick","pride","prier","prime","primo",
+  "primp","prink","print","prion","prior","prism","privy","prize","probe","proem",
+  "prole","promo","prone","prong","proof","propr","props","prose","prosy","proud",
+  "prove","prowl","proxy","prude","prune","psalm","pseud","pshaw","psoas","psych",
+  "pubes","pubic","pubis","pucka","pudgy","puffy","pukka","pulpy","pulse","punch",
+  "pungy","pupae","pupal","pupil","puppy","puree","purge","purse","pursy","pushy",
+  "pussy","putto","putty","pygmy","pylon","pyoid","pyxie","pzazz","qibla","qophs",
+  "quack","quaff","quail","quake","quaky","quale","qualm","quant","quark","quart",
+  "quash","quasi","quass","quean","queen","queer","quell","quern","query","quest",
+  "queue","quick","quiet","quiff","quill","quilt","quine","quint","quipu","quire",
+  "quirk","quirt","quite","quoin","quoit","quota","quote","rabbi","rabid","racer",
+  "races","racon","radar","radii","radio","radix","radon","ragga","rainy","raise",
+  "rajah","rajes","rally","ramie","rance","ranch","randy","ranee","range","rangy",
+  "raper","rapid","raspy","ratal","ratan","rated","ratel","rater","rates","rathe",
+  "ratio","ratty","ravel","raven","raves","ravin","rayon","razee","razor","reach",
+  "react","reads","ready","realm","reata","reave","rebec","rebel","rebid","recap",
+  "recce","recon","recti","recto","recur","recut","redan","redye","reeds","reedy",
+  "reeky","reest","reeve","refer","refix","refry","regal","regex","rehab","reify",
+  "reign","reive","relax","relay","relic","remex","remit","remix","renal","renew",
+  "renin","reorg","repay","repel","reply","repro","resat","resin","resow","retch",
+  "retro","revel","revet","revue","rheum","rhino","rhomb","rhumb","rhyme","riant",
+  "riata","ricer","rider","rides","ridge","ridgy","rifle","right","rigid","rigor",
+  "rille","rings","rinse","ripen","riper","risen","riser","rishi","risky","ritzy",
+  "rival","river","rivet","riyal","roach","roads","roast","robin","roble","robot",
+  "rocky","rodeo","roger","rogue","roily","roles","roman","romeo","ronde","rondo",
+  "rooky","roomy","roose","roost","roots","roper","ropes","roque","roses","rosin",
+  "rotor","rouge","rough","round","rouse","roust","route","rover","rowan","rowdy",
+  "rowel","rower","royal","rubel","ruble","ruche","ruddy","rugby","ruler","rules",
+  "rumal","rumba","rummy","rumor","runic","runny","runty","rupee","rural","rushy",
+  "rusty","ruths","rutty","saber","sabin","sable","sabot","sabra","sacra","sades",
+  "sadhu","sadly","safes","saggy","sahib","saiga","saint","saith","salad","salep",
+  "sales","sally","salmi","salol","salon","salpa","salsa","salty","salve","salvo",
+  "samba","sambo","samey","sands","sandy","sapid","sapor","sappy","saran","sarge",
+  "sarky","saros","sasin","sassy","satay","satem","satin","satyr","sauce","saucy",
+  "sauna","saury","saute","saved","saver","saves","savor","savoy","savvy","scald",
+  "scale","scalp","scaly","scamp","scant","scape","scare","scarf","scarp","scary",
+  "scend","scene","scent","schmo","schwa","scion","scoff","scold","scone","scoop",
+  "scoot","scope","score","scorn","scour","scout","scowl","scrag","scram","scrap",
+  "scree","screw","scrim","scrip","scrod","scrog","scrub","scrum","scuba","scudo",
+  "scuff","scull","sculp","scurf","scuta","scute","seamy","sebum","secco","sedan",
+  "sedge","sedgy","sedum","seeds","seedy","segno","segue","seine","seise","seism",
+  "seize","selah","sells","semen","senna","senor","sense","sente","sepal","sepia",
+  "sepoy","septa","serai","serge","serif","serin","serow","serum","serve","servo",
+  "setae","setup","seven","sever","sewan","sewer","shack","shade","shady","shaft",
+  "shahs","shake","shako","shaky","shale","shall","shalt","shame","shank","shape",
+  "shard","share","shark","sharp","shave","shawl","shawm","sheaf","shear","sheen",
+  "sheep","sheer","sheet","shelf","shell","shend","shewn","shift","shill","shine",
+  "shiny","ships","shire","shirk","shirr","shirt","shiva","shoal","shoat","shock",
+  "shoes","shone","shook","shool","shoot","shops","shore","short","shote","shots",
+  "shout","shove","shown","showy","shred","shrew","shrub","shrug","shuck","shunt",
+  "shush","shyer","sibyl","sicko","sided","sides","sidle","siege","sieve","sighs",
+  "sight","sigil","sigma","silky","silly","silty","silva","simar","simba","since",
+  "sinew","singe","sings","sinus","siren","sisal","sissy","sitar","sixth","sixty",
+  "sizar","sizer","sizes","skald","skate","skean","skeet","skein","skelp","skier",
+  "skiff","skill","skimp","skink","skint","skirl","skirr","skirt","skite","skive",
+  "skoal","skosh","skulk","skull","skunk","slack","slain","slake","slang","slant",
+  "slash","slate","slaty","slave","sleek","sleep","sleet","slept","slice","slick",
+  "slide","slime","slimy","sling","slink","sloop","slope","slops","slosh","sloth",
+  "sluff","slump","slung","slunk","slurp","slush","slype","smack","small","smalt",
+  "smarm","smart","smash","smaze","smear","smell","smelt","smile","smirk","smite",
+  "smith","smock","smoke","smoko","smoky","smolt","smote","smurf","snack","snafu",
+  "snail","snake","snaky","snare","snarf","snark","snarl","snath","sneak","sneck",
+  "sneer","snick","snide","sniff","snipe","snips","snood","snook","snoop","snoot",
+  "snore","snort","snout","snowy","snuff","soapy","soave","sober","socle","sofar",
+  "softa","softy","soggy","solan","solar","soldo","solid","solon","solus","solve",
+  "sonar","sonde","songs","sonic","sonny","sooth","sooty","sopor","soppy","sorgo",
+  "sorry","sorta","sorus","sough","sound","soupy","souse","south","sower","space",
+  "spade","spahi","spake","spall","spang","spank","spare","spark","spasm","spate",
+  "spawn","speak","spear","speck","specs","speed","spell","spend","spent","speos",
+  "sperm","spica","spice","spicy","spiel","spiff","spike","spiky","spile","spill",
+  "spine","spiny","spire","spiry","spite","spitz","splat","splay","split","spoil",
+  "spoke","spoof","spook","spool","spoon","spoor","spore","sport","spots","spout",
+  "sprag","sprat","spray","spree","sprig","sprit","sprog","sprue","spume","spumy",
+  "spunk","spurn","spurt","sputa","squab","squad","squat","squaw","squib","squid",
+  "sruti","stacc","stack","staff","stage","stagy","staid","stain","stair","stake",
+  "stale","stalk","stall","stamp","stand","stane","stang","stank","staph","stare",
+  "stark","start","stash","state","stave","stays","stdio","stead","steak","steal",
+  "steam","steed","steel","steep","steer","stein","stela","stele","steno","stent",
+  "stere","stern","stich","stick","stiff","stile","still","stilt","sting","stink",
+  "stint","stipe","stirk","stoat","stock","stoic","stoke","stole","stoma","stomp",
+  "stone","stony","stood","stook","stool","stoop","stope","stops","store","stork",
+  "storm","story","stoss","stoup","stout","stove","strap","straw","stray","strep",
+  "strew","stria","strip","strop","strow","stroy","strum","strut","stuck","study",
+  "stuff","stull","stump","stung","stunk","stunt","stupa","stupe","style","styli",
+  "suave","sucre","sudor","sudsy","suede","suety","sugar","suint","suite","sulci",
+  "sulfa","sulky","sully","sumac","summa","sunny","sunup","super","suppl","supra",
+  "surah","sural","surer","surge","surgy","surly","surra","sushi","sutra","swage",
+  "swain","swale","swami","swamp","swank","sward","swarm","swart","swash","swath",
+  "swear","sweat","swede","sweep","sweet","swell","swept","swift","swill","swine",
+  "swing","swink","swipe","swirl","swish","swizz","swoon","swoop","sword","swore",
+  "sworn","swung","sycee","sylph","synod","synop","syrup","sysop","tabby","tabes",
+  "tabla","table","taboo","tabor","tacet","tache","tacit","tacky","taffy","tafia",
+  "taiga","taint","taken","taker","takin","tales","talky","tally","talon","taluk",
+  "talus","tamed","tamer","tamis","tammy","tango","tangy","tanka","tansy","tanto",
+  "tapas","taper","tapes","tapir","tapis","tardy","targe","tarot","tarry","tarsi",
+  "tarty","taser","tasse","taste","tasty","tater","tatty","taunt","taupe","tawny",
+  "taxed","taxer","taxon","tayra","tazza","teach","tears","teary","tease","techs",
+  "techy","teddy","teens","teeny","teeth","teleg","telex","telic","tells","telly",
+  "tempo","tempt","tench","tenet","tenge","tenia","tenne","tenno","tenon","tenor",
+  "tense","tenth","tepee","tepid","terce","terms","terns","terra","terry","terse",
+  "tesla","testa","testy","teths","tetra","thane","thank","thebe","theca","theft",
+  "thegn","their","theme","theol","there","therm","these","theta","thewy","thick",
+  "thief","thigh","thill","thine","thing","think","thiol","third","thole","thong",
+  "thorn","thorp","those","three","threw","throb","throe","throw","thrum","thuja",
+  "thumb","thump","thunk","thuya","thyme","tiara","tibia","tical","tidal","tides",
+  "tiger","tight","tigon","tilde","tiler","tiles","timer","timid","tinct","tinea",
+  "tinge","tinny","tipsy","tired","titan","titch","tithe","title","titty","tizzy",
+  "toads","toady","toast","today","toddy","toile","tokay","token","tolan","tolar",
+  "tolly","tolyl","tonal","toner","tones","tonga","tonic","tonne","tonus","tooth",
+  "topaz","topee","topic","topog","toque","torch","torii","torse","torsk","torso",
+  "torte","torus","total","totem","touch","tough","towel","tower","toxic","toxin",
+  "trace","track","tract","trade","trail","train","trait","tramp","trans","trash",
+  "trass","trave","trawl","tread","treas","treat","treen","trees","trend","tress",
+  "trews","triad","trial","tribe","trice","trick","tried","trier","trike","trill",
+  "trine","tripe","trips","trite","troat","troll","tromp","trona","troop","trope",
+  "troth","trout","trove","truce","truck","trull","truly","trump","trunk","truss",
+  "trust","truth","tryma","tryst","tubal","tubby","tuber","tufty","tulip","tulle",
+  "tumid","tummy","tumor","tuner","tunic","tunny","tuple","tuque","turbo","turfy",
+  "turns","turps","tushy","tutor","tutti","tutty","twain","twang","tweak","tweed",
+  "tween","tweet","twerk","twerp","twice","twill","twine","twink","twirl","twist",
+  "twixt","tying","typal","types","udder","uhlan","ukase","ulcer","ulema","ulnae",
+  "ulnar","ultra","umbel","umber","umbra","umiak","unapt","unary","unbid","unbox",
+  "uncap","uncle","uncut","under","undue","unfed","unfit","unify","union","unite",
+  "unity","unjam","unlay","unlit","unmet","unpeg","unpen","unpin","unrig","unsay",
+  "unset","until","unwed","unwon","upend","upped","upper","upset","urban","uredo",
+  "urial","urine","usage","usher","usual","usurp","usury","uteri","utile","utter",
+  "uvula","vagal","vague","vagus","valet","valid","valor","valse","value","valve",
+  "vampy","vanda","vapid","vapor","varia","varix","varus","varve","vasty","vatic",
+  "vault","vaunt","vedic","veery","vegan","veges","veiny","velar","velum","venae",
+  "venal","venge","venin","venom","venue","venus","verge","versa","verse","verso",
+  "verst","vertu","verve","vesta","vetch","viand","vibes","vicar","viced","video",
+  "viewy","vigil","vigor","villa","villi","vines","vinic","vinyl","viola","viper",
+  "viral","vireo","virga","virtu","virus","visit","visor","vista","vitae","vital",
+  "vitta","vivid","vixen","vocab","vocal","vodka","vogue","voice","voila","voile",
+  "volar","volva","vomer","vomit","voter","votes","vouch","vouge","vowel","vulva",
+  "vying","wacke","wacko","wacky","wader","wadge","wafer","waged","wager","wages",
+  "wagon","wahoo","waist","waive","waken","waldo","walls","wally","waltz","wanna",
+  "warez","warns","warty","washy","waste","watch","water","waver","waves","wazoo",
+  "weald","wears","weary","weave","webby","wedge","weeds","weedy","weeny","weepy",
+  "weigh","weird","wells","welly","welsh","wench","wersh","whack","whale","wharf",
+  "wheal","wheat","wheel","wheen","whelk","whelm","whelp","where","which","whiff",
+  "while","whine","whiny","whipt","whirl","whish","whisk","whist","white","whity",
+  "whole","whomp","whoop","whore","whorl","whose","whoso","whsle","widen","wider",
+  "widow","width","wield","wight","wilds","wills","willy","wimpy","wince","winch",
+  "winds","windy","wines","wings","winze","wiper","wired","wirer","wirra","wispy",
+  "witch","withe","withy","witty","wizen","woald","wodge","woman","women","wonky",
+  "woods","woody","wooer","woops","woozy","words","wordy","works","world","worms",
+  "wormy","worry","worse","worst","worth","would","wound","woven","wrack","wraps",
+  "wrath","wreak","wreck","wrest","wring","wrist","write","wrong","wrote","wroth",
+  "wrung","wryer","wurst","wussy","xcvii","xebec","xenia","xenon","xeric","xerox",
+  "xterm","xviii","xxiii","xxvii","xxxii","xxxiv","xxxix","xxxvi","xylem","xylol",
+  "yacht","yahoo","yakka","yapok","yapon","yappy","yeahs","yearn","years","yeast",
+  "yenta","yield","yikes","yobbo","yodel","yodle","yogic","yokel","yonks","young",
+  "youth","yucca","yucky","yukky","yulan","yummy","zaire","zamia","zappy","zayin",
+  "zazen","zebec","zebra","zesty","zibet","zilch","zingy","zippy","zloty","zonal",
+  "zones","zooid","zorch","zoril"
 ].map(w => w.toUpperCase()));
 
 /* ════════════════════════════════════════════
@@ -3237,21 +3503,59 @@ const SectionLabel = ({ children, right }) => (
   </div>
 );
 
-const PhoneFrame = ({ children }) => (
-  <div style={{
-    width: 393, minHeight: 852, maxHeight: 852, overflowY: "auto",
-    background: `linear-gradient(180deg, #12121a 0%, ${T.bg} 50%, #0a0a10 100%)`,
-    borderRadius: 44, position: "relative",
-    border: `1px solid ${T.cardBorder}`,
-    boxShadow: "0 25px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
-    scrollbarWidth: "none",
-  }}>
-    <style>{`div::-webkit-scrollbar { display: none; }`}</style>
-    <div style={{ position: "absolute", top: -80, right: -60, width: 250, height: 250, background: "radial-gradient(circle, rgba(255,107,53,0.10) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none" }} />
-    <div style={{ position: "absolute", top: 350, left: -80, width: 200, height: 200, background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(50px)", pointerEvents: "none" }} />
-    {children}
-  </div>
-);
+const PhoneFrame = ({ children }) => {
+  /* Responsive frame: fills viewport on real devices / PWA,
+     shows phone mockup on wide desktop screens.
+     Uses matchMedia for PWA detection + window width for mobile browser. */
+  const [isFullScreen, setIsFullScreen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const isPWA = window.matchMedia("(display-mode: standalone)").matches
+               || window.navigator.standalone === true; /* iOS Safari */
+    return isPWA || window.innerWidth <= 500;
+  });
+
+  useEffect(() => {
+    const check = () => {
+      const isPWA = window.matchMedia("(display-mode: standalone)").matches
+                 || window.navigator.standalone === true;
+      setIsFullScreen(isPWA || window.innerWidth <= 500);
+    };
+    window.addEventListener("resize", check);
+    /* Also listen for display-mode changes (e.g. PWA install) */
+    const mq = window.matchMedia("(display-mode: standalone)");
+    if (mq.addEventListener) mq.addEventListener("change", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      if (mq.removeEventListener) mq.removeEventListener("change", check);
+    };
+  }, []);
+
+  const frameStyle = isFullScreen
+    ? {
+        width: "100%", minHeight: "100dvh", maxHeight: "100dvh", overflowY: "auto",
+        background: `linear-gradient(180deg, #12121a 0%, ${T.bg} 50%, #0a0a10 100%)`,
+        borderRadius: 0, position: "relative",
+        border: "none", boxShadow: "none", scrollbarWidth: "none",
+      }
+    : {
+        width: 393, minHeight: 852, maxHeight: 852, overflowY: "auto",
+        background: `linear-gradient(180deg, #12121a 0%, ${T.bg} 50%, #0a0a10 100%)`,
+        borderRadius: 44, position: "relative",
+        border: `1px solid ${T.cardBorder}`,
+        boxShadow: "0 25px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
+        scrollbarWidth: "none",
+      };
+
+  return (
+    <div style={frameStyle}>
+      <style>{`div::-webkit-scrollbar { display: none; }`}</style>
+      {/* Decorative ambient blurs — overflow hidden in fullscreen keeps them contained */}
+      <div style={{ position: "absolute", top: -80, right: -60, width: 250, height: 250, background: "radial-gradient(circle, rgba(255,107,53,0.10) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none", overflow: "hidden" }} />
+      <div style={{ position: "absolute", top: 350, left: -80, width: 200, height: 200, background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(50px)", pointerEvents: "none", overflow: "hidden" }} />
+      {children}
+    </div>
+  );
+};
 
 const BottomNav = ({ active, onNav }) => (
   <div style={{
@@ -3476,11 +3780,12 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
     return unlockedWords[Math.floor(Date.now() / 86400000) % unlockedWords.length];
   }, [unlockedWords]);
   const today = todayISO();
-  const dueWords = useMemo(() => unlockedWords.filter(w => {
+  const allDueWords = useMemo(() => unlockedWords.filter(w => {
     if (w.status === "new") return false;
     if (!w.nextReview) return w.status === "learning";
     return w.nextReview <= today;
-  }).slice(0, 4), [unlockedWords, today]);
+  }), [unlockedWords, today]);
+  const dueWords = allDueWords.slice(0, 4);
   const totalLearned = wordsDB.filter(w => w.status === "familiar" || w.status === "mastered").length;
   const accuracy = (gameState.quizAttempts || 0) > 0
     ? Math.round(((gameState.quizCorrect || 0) / gameState.quizAttempts) * 100)
@@ -3679,10 +3984,10 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
         </div>
         {dueWords.length > 0 && (
           <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 18, marginBottom: 20 }}>
-            <SectionLabel right={`${dueWords.length} due now`}>Due for Review</SectionLabel>
+            <SectionLabel right={`${allDueWords.length} due now`}>Due for Review</SectionLabel>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {dueWords.map((w) => (
-                <div key={w.id} onClick={() => onNav("cards", { wordId: w.id })} style={{
+                <div key={w.id} onClick={() => onNav("cards", { wordId: w.id, returnTo: "home" })} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
                   padding: "10px 14px", background: "rgba(255,107,53,0.06)", borderRadius: 12,
                   border: "1px solid rgba(255,107,53,0.12)", cursor: "pointer", transition: "all 0.2s ease",
@@ -3698,6 +4003,14 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
                 </div>
               ))}
             </div>
+            {allDueWords.length > 4 && (
+              <div onClick={() => onNav("practice")} style={{
+                textAlign: "center", marginTop: 12, padding: "10px 0", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, color: T.accent1,
+              }}>
+                Practice all {allDueWords.length} due words →
+              </div>
+            )}
           </div>
         )}
 
@@ -3747,7 +4060,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
 /* ════════════════════════════════════════════
    SCREEN: WORD CARDS (Swipeable)
    ════════════════════════════════════════════ */
-function WordCardsScreen({ onNav, startWordId, wordsDB, updateWord, rateWord }) {
+function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, rateWord }) {
   const [filter, setFilter] = useState("all");
   const filtered = filter === "all" ? wordsDB : wordsDB.filter((w) => w.category === filter);
   const startIdx = startWordId ? Math.max(0, filtered.findIndex((w) => w.id === startWordId)) : 0;
@@ -3809,7 +4122,7 @@ function WordCardsScreen({ onNav, startWordId, wordsDB, updateWord, rateWord }) 
       <StatusBar />
       <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <BackBtn onClick={() => onNav("home")} label="Home" />
+          <BackBtn onClick={() => onNav(returnTo || "home")} label={returnTo === "words" ? "Word Lists" : returnTo === "palettes" ? "Palettes" : "Home"} />
           <span style={{ fontSize: 13, color: T.muted, fontWeight: 500 }}>{idx + 1} / {filtered.length}</span>
         </div>
 
@@ -4003,7 +4316,7 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {words.map((w) => (
-              <div key={w.id} onClick={() => onNav("cards", { wordId: w.id })} style={{
+              <div key={w.id} onClick={() => onNav("cards", { wordId: w.id, returnTo: "words" })} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "14px 16px", background: T.card, border: `1px solid ${T.cardBorder}`,
                 borderRadius: 14, cursor: "pointer", transition: "all 0.2s ease",
@@ -4023,7 +4336,7 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
                   <StrengthDots level={w.strength} />
                   <span style={{ fontSize: 16, color: T.dimmed }}>›</span>
                 </div>
-               </div>
+              </div>
             ))}
           </div>
         </div>
@@ -4210,6 +4523,7 @@ function PracticeScreen({ onNav, userPrefs, wordsDB, updateWord, completePractic
       <div style={{ padding: "0 20px", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <BackBtn onClick={() => onNav("home")} label="Exit" />
+          <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{step + 1} / {total}</span>
           <span style={{
             fontSize: 11, fontWeight: 600, color: T.accent1,
             background: "rgba(255,107,53,0.12)", padding: "4px 12px", borderRadius: 20,
@@ -4327,7 +4641,7 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
   const checkAnswer = () => {
     setShowResult(true);
     if (q.type === "multiple_choice" && selected === q.correct) { setScore((s) => { scoreRef.current = s + 1; return s + 1; }); }
-    if (q.type === "fill_blank" && fillInput.trim().toLowerCase() === q.answer.toLowerCase()) { setScore((s) => { scoreRef.current = s + 1; return s + 1; }); }
+    if (q.type === "fill_blank" && fuzzyWordMatch(fillInput, q.answer)) { setScore((s) => { scoreRef.current = s + 1; return s + 1; }); }
   };
 
   const next = () => {
@@ -4445,7 +4759,7 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
               placeholder="Type your answer..."
               style={{
                 width: "100%", padding: "16px 18px", borderRadius: 14,
-                background: T.card, border: `1px solid ${showResult ? (fillInput.trim().toLowerCase() === q.answer.toLowerCase() ? "rgba(52,199,89,0.4)" : "rgba(255,59,48,0.4)") : T.cardBorder}`,
+                background: T.card, border: `1px solid ${showResult ? (fuzzyWordMatch(fillInput, q.answer) ? "rgba(52,199,89,0.4)" : "rgba(255,59,48,0.4)") : T.cardBorder}`,
                 color: T.white, fontSize: 16, fontFamily: T.sans, outline: "none", boxSizing: "border-box", transition: "border 0.2s ease",
               }}
             />
@@ -4703,7 +5017,10 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
   };
   const difficulties = { easy: { guesses: 7, showHint: true }, medium: { guesses: 6, showHint: true }, hard: { guesses: 5, showHint: false } };
 
-  const [difficulty, setDifficulty] = useState(null);
+  const [difficulty, setDifficulty] = useState(() => {
+    const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
+    return prefs?.wordle || null;
+  });
   // Date-seeded: same day = same puzzle, cycles through all words before repeating
   const dayNumber = useMemo(() => Math.floor(Date.now() / 86400000), []);
   const pool = difficulty ? wordPools[difficulty] : [];
@@ -4806,6 +5123,18 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
     if (current.length < answer.length && /^[A-Z]$/.test(key)) setCurrent((c) => c + key);
   };
 
+  /* Physical keyboard support */
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Enter") handleKey("ENTER");
+      else if (e.key === "Backspace") handleKey("DEL");
+      else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
   const keyRows = [["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["ENTER","Z","X","C","V","B","N","M","DEL"]];
 
   return (
@@ -4902,7 +5231,10 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
    PUZZLE: MINI CROSSWORD (5x5) — FIXED with valid words
    ════════════════════════════════════════════ */
 function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
-  const [difficulty, setDifficulty] = useState(null);
+  const [difficulty, setDifficulty] = useState(() => {
+    const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
+    return prefs?.crossword || null;
+  });
 
   /* ── 20 pre-computed 5×5 crossword grids ──
      Pattern: rows 0,2,4 are across words; rows 1,3 are all black.
@@ -5259,7 +5591,10 @@ function QuadWordPuzzle({ onNav, onComplete }) {
   };
   const dayNumber = useMemo(() => Math.floor(Date.now() / 86400000), []);
   const diffSettings = { easy: { guesses: 9, showHints: true }, medium: { guesses: 9, showHints: true }, hard: { guesses: 7, showHints: false } };
-  const [difficulty, setDifficulty] = useState(null);
+  const [difficulty, setDifficulty] = useState(() => {
+    const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
+    return prefs?.quadword || null;
+  });
   const pool = difficulty ? wordPools[difficulty] : null;
   const set = pool ? pool[dayNumber % pool.length] : null;
   const answers = set?.words || [];
@@ -5346,6 +5681,18 @@ function QuadWordPuzzle({ onNav, onComplete }) {
 
   const allSolved = solved.every(Boolean);
   const gameOver = allSolved || guesses.length >= maxGuesses;
+
+  /* Physical keyboard support */
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Enter") handleKey("ENTER");
+      else if (e.key === "Backspace") handleKey("DEL");
+      else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase());
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   const keyRows = [["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["ENTER","Z","X","C","V","B","N","M","DEL"]];
 
@@ -5577,7 +5924,7 @@ function PalettesScreen({ onNav, wordsDB }) {
           {/* Study this word button */}
           {dbWord && (
             <div
-              onClick={() => onNav("cards", { wordId: dbWord.id })}
+              onClick={() => onNav("cards", { wordId: dbWord.id, returnTo: "palettes" })}
               style={{
                 background: gradient, borderRadius: 14, padding: "14px 20px", textAlign: "center",
                 cursor: "pointer", marginBottom: 20, fontWeight: 700, fontSize: 14, color: T.white,
@@ -5864,9 +6211,18 @@ const scoreRecall = (typed, original) => {
 /* ════════════════════════════════════════════
    SCREEN: QUOTE BANK (List + View)
    ════════════════════════════════════════════ */
-function QuoteBankScreen({ onNav, quotes, userPrefs }) {
+function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
   const [filterText, setFilterText] = useState("all");
   const [viewQuote, setViewQuote] = useState(null);
+  const [toast, setToast] = useState(navData?.saved ? "Quote saved! +5 XP ⭐" : null);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   // Text options from user's selected texts + shared "all"
   const textOptions = useMemo(() => {
@@ -6004,6 +6360,15 @@ function QuoteBankScreen({ onNav, quotes, userPrefs }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <BackBtn onClick={() => onNav("home")} label="Home" />
         </div>
+        {/* Toast notification */}
+        {toast && (
+          <div style={{
+            background: "rgba(52,199,89,0.15)", border: "1px solid rgba(52,199,89,0.3)",
+            padding: "10px 16px", borderRadius: 14, marginBottom: 12,
+            fontSize: 14, fontWeight: 600, color: T.green, textAlign: "center",
+            animation: "fadeSlideUp 0.3s ease both",
+          }}>{toast}</div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <h2 style={{ fontSize: 26, fontFamily: T.serif, fontWeight: 700, color: T.white, margin: "0 0 4px" }}>Quote Bank</h2>
@@ -6082,8 +6447,8 @@ function QuoteBankScreen({ onNav, quotes, userPrefs }) {
                 </div>
               </div>
             );
-          })} 
-          </div>
+          })}
+        </div>
 
         {/* Add Quote FAB */}
         <button onClick={() => onNav("quoteadd")} style={{
@@ -6159,7 +6524,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
         technique,
         essaySentence: essaySentence.trim(),
       } : q));
-      onNav("quotebank");
+      onNav("quotebank", { saved: true });
     } else {
       // Create new
       const newQuote = {
@@ -6184,7 +6549,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
       };
       setQuotes(prev => [...prev, newQuote]);
       awardXP(XP.QUOTE_ADD, { quotesAdded: ((navData?._quotesAdded) || quotes.length) + 1 });
-      onNav("quotebank");
+      onNav("quotebank", { saved: true });
     }
   };
 
@@ -7354,10 +7719,18 @@ function WordSmithApp() {
     setNavData(data);
   }, []);
 
+  /* Detect fullscreen mode for outer wrapper — same logic as PhoneFrame */
+  const isAppFullScreen = typeof window !== "undefined" && (
+    window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true
+    || window.innerWidth <= 500
+  );
+
   return (
     <div style={{
       minHeight: "100vh", display: "flex", justifyContent: "center",
-      alignItems: "flex-start", padding: "20px 0",
+      alignItems: isAppFullScreen ? "stretch" : "flex-start",
+      padding: isAppFullScreen ? 0 : "20px 0",
       background: "#08080c", fontFamily: T.sans,
     }}>
       <style>{`
@@ -7416,6 +7789,7 @@ function WordSmithApp() {
             <WordCardsScreen
               onNav={handleNav}
               startWordId={navData?.wordId}
+              returnTo={navData?.returnTo || "home"}
               wordsDB={visibleWordsDB}
               updateWord={updateWord}
               rateWord={rateWord}
@@ -7469,7 +7843,7 @@ function WordSmithApp() {
             <PalettesScreen onNav={handleNav} wordsDB={wordsDB} />
           )}
           {screen === "quotebank" && (
-            <QuoteBankScreen onNav={handleNav} quotes={quotes} userPrefs={userPrefs} />
+            <QuoteBankScreen onNav={handleNav} quotes={quotes} userPrefs={userPrefs} navData={navData} />
           )}
           {screen === "quoteadd" && (
             <QuoteAddScreen
