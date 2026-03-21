@@ -1,24 +1,37 @@
 {
-  "name": "Wordsmith",
-  "short_name": "Wordsmith",
+  "name": "WordSmith",
+  "short_name": "WordSmith",
   "description": "Vocabulary Mastery for NESA English — Year 10–12",
   "start_url": ".",
+  "scope": ".",
   "display": "standalone",
-  "background_color": "#08080c",
-  "theme_color": "#0d0d14",
+  "background_color": "#f5f6ff",
+  "theme_color": "#f5f6ff",
   "orientation": "portrait",
   "icons": [
     {
       "src": "icon192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "icon512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
