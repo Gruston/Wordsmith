@@ -1,4 +1,4 @@
-/* WordSmith Service Worker
+/* Wordsmith Service Worker
    Strategy: Cache-first for app shell, network-first for CDN scripts.
    Version bump here triggers cache refresh on update.
 */
