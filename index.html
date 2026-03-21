@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="WordSmith" />
-  <meta name="theme-color" content="#0d0d14" />
+  <meta name="theme-color" content="#f5f6ff" />
   <meta name="description" content="WordSmith — Vocabulary Mastery for NESA English" />
 
   <!-- PWA manifest -->
@@ -22,7 +22,7 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: #08080c;
+      background: #f5f6ff;
       overflow: hidden;
       height: 100%;
       width: 100%;
@@ -39,7 +39,7 @@
     #loading {
       position: fixed;
       inset: 0;
-      background: #08080c;
+      background: #f5f6ff;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -48,17 +48,17 @@
       z-index: 9999;
     }
     #loading-title {
-      font-family: Georgia, serif;
+      font-family: 'Noto Serif', Georgia, serif;
       font-size: 32px;
       font-weight: 700;
-      background: linear-gradient(135deg, #FF6B35, #FF2D55, #A855F7);
+      background: linear-gradient(135deg, #00656f, #005861, #a1f2fe);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     #loading-sub {
-      font-family: system-ui, sans-serif;
+      font-family: 'Manrope', system-ui, sans-serif;
       font-size: 14px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(41,47,59,0.45);
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
@@ -66,8 +66,8 @@
     #loading-spinner {
       width: 32px;
       height: 32px;
-      border: 3px solid rgba(255,107,53,0.2);
-      border-top-color: #FF6B35;
+      border: 3px solid rgba(0,101,111,0.2);
+      border-top-color: #00656f;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -1196,24 +1196,37 @@ if (typeof window !== "undefined") {
    DESIGN TOKENS
    ════════════════════════════════════════════ */
 const T = {
-  bg: "#0d0d14",
-  card: "rgba(255,255,255,0.04)",
-  cardBorder: "rgba(255,255,255,0.08)",
-  accent1: "#FF6B35",
-  accent2: "#FF2D55",
-  accent3: "#A855F7",
+  bg: "#f5f6ff",
+  card: "#ffffff",
+  cardBorder: "rgba(0,0,0,0.07)",
+  accent1: "#00656f",
+  accent2: "#765600",
+  accent3: "#9a3d3f",
   green: "#34C759",
-  yellow: "#FFD60A",
-  cyan: "#06D6A0",
-  white: "#fff",
-  muted: "rgba(255,255,255,0.45)",
-  dimmed: "rgba(255,255,255,0.3)",
-  serif: "'Fraunces', serif",
-  sans: "'DM Sans', sans-serif",
+  yellow: "#ffca53",
+  cyan: "#a1f2fe",
+  white: "#292f3b",
+  muted: "rgba(41,47,59,0.50)",
+  dimmed: "rgba(41,47,59,0.30)",
+  serif: "'Noto Serif', serif",
+  sans: "'Manrope', sans-serif",
   radius: 20,
+  /* Extended palette for light-mode helpers */
+  surface: "#f5f6ff",
+  surfaceLow: "#ecf0ff",
+  surfaceHigh: "#dbe2f8",
+  onSurface: "#292f3b",
+  primaryContainer: "#a1f2fe",
+  onPrimaryContainer: "#005d65",
+  secondaryContainer: "#ffca53",
+  onSecondaryContainer: "#5c4300",
+  tertiaryContainer: "#ff9191",
+  onTertiaryContainer: "#601218",
+  outline: "#717785",
+  outlineVariant: "#a7adbd",
 };
 
-const gradient = `linear-gradient(135deg, ${T.accent1} 0%, ${T.accent2} 60%, ${T.accent3} 100%)`;
+const gradient = `linear-gradient(135deg, ${T.accent1} 0%, #005861 60%, ${T.primaryContainer} 100%)`;
 
 /* Pronunciation helper — Web Speech API with Australian/British English preference */
 /* Preload voices on module init */
@@ -1503,6 +1516,41 @@ const Storage = {
 };
 
 /* ════════════════════════════════════════════
+   ERROR BOUNDARY — catches render crashes
+   Shows recovery UI instead of black screen
+   ════════════════════════════════════════════ */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("WordSmith ErrorBoundary caught:", error, info?.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 24, textAlign: "center", color: "#292f3b", fontFamily: T.sans }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Something went wrong</div>
+          <div style={{ fontSize: 13, color: "rgba(41,47,59,0.50)", marginBottom: 20, lineHeight: 1.5 }}>
+            {this.state.error?.message || "An unexpected error occurred."}
+          </div>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); if (this.props.onRecover) this.props.onRecover(); }} style={{
+            padding: "12px 28px", borderRadius: 14, background: "rgba(0,101,111,0.12)", border: "1px solid rgba(0,101,111,0.25)",
+            color: "#292f3b", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: T.sans,
+          }}>Go Home</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ════════════════════════════════════════════
    BADGE UNLOCK MODAL
    ════════════════════════════════════════════ */
 function BadgeModal({ badgeId, onDismiss }) {
@@ -1512,14 +1560,14 @@ function BadgeModal({ badgeId, onDismiss }) {
     <div style={{
       position:"fixed", inset:0, zIndex:1000,
       display:"flex", alignItems:"center", justifyContent:"center",
-      background:"rgba(0,0,0,0.75)", backdropFilter:"blur(8px)",
+      background:"rgba(0,0,0,0.5)", backdropFilter:"blur(8px)",
     }} onClick={onDismiss}>
       <div onClick={e => e.stopPropagation()} style={{
         background:"linear-gradient(145deg,#1a1a2e,#16213e)",
         border:"1px solid rgba(255,214,10,0.3)",
         borderRadius:28, padding:"36px 32px", textAlign:"center",
         maxWidth:300, width:"90%",
-        boxShadow:"0 0 60px rgba(255,214,10,0.15), 0 20px 60px rgba(0,0,0,0.5)",
+        boxShadow:"0 0 60px rgba(212,160,23,0.12), 0 20px 60px rgba(0,0,0,0.15)",
         animation:"fadeSlideUp 0.5s cubic-bezier(0.34,1.56,0.64,1) both",
       }}>
         <div style={{fontSize:64, marginBottom:8, animation:"breathe 2s ease-in-out infinite"}}>{badge.icon}</div>
@@ -1545,11 +1593,11 @@ function LevelUpModal({ levelData, onDismiss }) {
     <div style={{
       position:"fixed", inset:0, zIndex:999,
       display:"flex", alignItems:"center", justifyContent:"center",
-      background:"rgba(0,0,0,0.7)", backdropFilter:"blur(8px)",
+      background:"rgba(0,0,0,0.45)", backdropFilter:"blur(8px)",
     }} onClick={onDismiss}>
       <div onClick={e=>e.stopPropagation()} style={{
-        background:"linear-gradient(145deg,rgba(255,107,53,0.15),rgba(168,85,247,0.12))",
-        border:"1px solid rgba(255,107,53,0.3)",
+        background:"linear-gradient(145deg,rgba(0,101,111,0.10),rgba(0,101,111,0.08))",
+        border:"1px solid rgba(0,101,111,0.15)",
         borderRadius:28, padding:"36px 32px", textAlign:"center",
         maxWidth:300, width:"90%",
         animation:"fadeSlideUp 0.5s cubic-bezier(0.34,1.56,0.64,1) both",
@@ -3218,25 +3266,25 @@ const ALL_WORDS_DB = (function() {
 const WORD_LISTS = [
   // Y10 texts
   { id: "gatsby", name: "The Great Gatsby", icon: "📗", color: "#34C759", year: 10 },
-  { id: "macbeth", name: "Macbeth", icon: "🗡️", color: "#FF2D55", year: 10 },
-  { id: "war", name: "War Poetry", icon: "🎖️", color: "#FF6B35", year: 10 },
-  { id: "modernist", name: "Modernist Poetry", icon: "🖋️", color: "#A855F7", year: 10 },
+  { id: "macbeth", name: "Macbeth", icon: "🗡️", color: "#9a3d3f", year: 10 },
+  { id: "war", name: "War Poetry", icon: "🎖️", color: "#765600", year: 10 },
+  { id: "modernist", name: "Modernist Poetry", icon: "🖋️", color: "#00656f", year: 10 },
   // Y11 texts
-  { id: "lear", name: "King Lear", icon: "👑", color: "#FFD60A", year: 11 },
+  { id: "lear", name: "King Lear", icon: "👑", color: "#D4A017", year: 11 },
   { id: "turning", name: "The Turning", icon: "🌊", color: "#06D6A0", year: 11 },
-  { id: "bookthief", name: "The Book Thief", icon: "📖", color: "#FF6B35", year: 11 },
-  { id: "goodscent", name: "Good Scent from a Strange Mountain", icon: "🏔️", color: "#A855F7", year: 11 },
+  { id: "bookthief", name: "The Book Thief", icon: "📖", color: "#765600", year: 11 },
+  { id: "goodscent", name: "Good Scent from a Strange Mountain", icon: "🏔️", color: "#005861", year: 11 },
   // Y12 texts
-  { id: "merchant", name: "The Merchant of Venice", icon: "⚖️", color: "#FFD60A", year: 12 },
+  { id: "merchant", name: "The Merchant of Venice", icon: "⚖️", color: "#D4A017", year: 12 },
   { id: "floatingworld", name: "An Artist of the Floating World", icon: "🎨", color: "#06D6A0", year: 12 },
-  { id: "curiousinc", name: "The Curious Incident", icon: "🐕", color: "#FF2D55", year: 12 },
-  { id: "frankenstein", name: "Frankenstein", icon: "⚡", color: "#A855F7", year: 12 },
-  { id: "handmaids", name: "The Handmaid's Tale", icon: "🔴", color: "#FF2D55", year: 12 },
-  { id: "streetcar", name: "A Streetcar Named Desire", icon: "🚋", color: "#FF6B35", year: 12 },
+  { id: "curiousinc", name: "The Curious Incident", icon: "🐕", color: "#9a3d3f", year: 12 },
+  { id: "frankenstein", name: "Frankenstein", icon: "⚡", color: "#005861", year: 12 },
+  { id: "handmaids", name: "The Handmaid's Tale", icon: "🔴", color: "#9a3d3f", year: 12 },
+  { id: "streetcar", name: "A Streetcar Named Desire", icon: "🚋", color: "#00656f", year: 12 },
   // Shared categories (always visible)
   { id: "analysis", name: "Analysis & Argument", icon: "🔬", color: "#06D6A0", shared: true },
-  { id: "tone", name: "Tone, Mood & Emotion", icon: "🎭", color: "#FFD60A", shared: true },
-  { id: "sensory", name: "Sensory & Figurative", icon: "👁️", color: "#FF6B35", shared: true },
+  { id: "tone", name: "Tone, Mood & Emotion", icon: "🎭", color: "#D4A017", shared: true },
+  { id: "sensory", name: "Sensory & Figurative", icon: "👁️", color: "#765600", shared: true },
   { id: "movement", name: "Movement & Precision", icon: "💨", color: "#06D6A0", shared: true },
 ];
 
@@ -3440,7 +3488,7 @@ const StreakFlame = ({ size = 28 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
     <path d="M16 2C16 2 8 12 8 20C8 24.4 11.6 28 16 28C20.4 28 24 24.4 24 20C24 12 16 2 16 2Z" fill="url(#flame)" />
     <path d="M16 12C16 12 12 18 12 22C12 24.2 13.8 26 16 26C18.2 26 20 24.2 20 22C20 18 16 12 16 12Z" fill="#FFE066" />
-    <defs><linearGradient id="flame" x1="16" y1="2" x2="16" y2="28"><stop stopColor="#FF6B35" /><stop offset="1" stopColor="#FF2D55" /></linearGradient></defs>
+    <defs><linearGradient id="flame" x1="16" y1="2" x2="16" y2="28"><stop stopColor="#00656f" /><stop offset="1" stopColor="#005861" /></linearGradient></defs>
   </svg>
 );
 
@@ -3449,7 +3497,7 @@ const StrengthDots = ({ level, max = 5 }) => (
     {Array.from({ length: max }).map((_, i) => (
       <div key={i} style={{
         width: 6, height: 6, borderRadius: "50%",
-        background: i < level ? gradient : "rgba(255,255,255,0.15)",
+        background: i < level ? gradient : "rgba(0,0,0,0.06)",
       }} />
     ))}
   </div>
@@ -3458,9 +3506,9 @@ const StrengthDots = ({ level, max = 5 }) => (
 const Btn = ({ children, onClick, variant = "primary", style: s = {}, disabled }) => {
   const [hov, setHov] = useState(false);
   const base = variant === "primary"
-    ? { background: gradient, color: "#fff", border: "none", boxShadow: hov ? "0 8px 30px rgba(255,107,53,0.4)" : "0 4px 15px rgba(255,107,53,0.2)" }
+    ? { background: gradient, color: "#292f3b", border: "none", boxShadow: hov ? "0 8px 30px rgba(0,101,111,0.25)" : "0 4px 15px rgba(0,101,111,0.12)" }
     : variant === "ghost"
-    ? { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)", border: `1px solid ${T.cardBorder}` }
+    ? { background: "rgba(0,0,0,0.04)", color: "rgba(41,47,59,0.80)", border: `1px solid ${T.cardBorder}` }
     : { background: "transparent", color: T.muted, border: "none" };
   return (
     <button
@@ -3533,16 +3581,16 @@ const PhoneFrame = ({ children }) => {
   const frameStyle = isFullScreen
     ? {
         width: "100%", minHeight: "100dvh", maxHeight: "100dvh", overflowY: "auto",
-        background: `linear-gradient(180deg, #12121a 0%, ${T.bg} 50%, #0a0a10 100%)`,
+        background: T.surface,
         borderRadius: 0, position: "relative",
         border: "none", boxShadow: "none", scrollbarWidth: "none",
       }
     : {
         width: 393, minHeight: 852, maxHeight: 852, overflowY: "auto",
-        background: `linear-gradient(180deg, #12121a 0%, ${T.bg} 50%, #0a0a10 100%)`,
+        background: T.surface,
         borderRadius: 44, position: "relative",
         border: `1px solid ${T.cardBorder}`,
-        boxShadow: "0 25px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
+        boxShadow: "0 25px 80px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.06)",
         scrollbarWidth: "none",
       };
 
@@ -3550,43 +3598,59 @@ const PhoneFrame = ({ children }) => {
     <div style={frameStyle}>
       <style>{`div::-webkit-scrollbar { display: none; }`}</style>
       {/* Decorative ambient blurs — overflow hidden in fullscreen keeps them contained */}
-      <div style={{ position: "absolute", top: -80, right: -60, width: 250, height: 250, background: "radial-gradient(circle, rgba(255,107,53,0.10) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none", overflow: "hidden" }} />
-      <div style={{ position: "absolute", top: 350, left: -80, width: 200, height: 200, background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)", filter: "blur(50px)", pointerEvents: "none", overflow: "hidden" }} />
+      <div style={{ position: "absolute", top: -80, right: -60, width: 250, height: 250, background: "radial-gradient(circle, rgba(0,101,111,0.06) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none", overflow: "hidden" }} />
+      <div style={{ position: "absolute", top: 350, left: -80, width: 200, height: 200, background: "radial-gradient(circle, rgba(161,242,254,0.12) 0%, transparent 70%)", filter: "blur(50px)", pointerEvents: "none", overflow: "hidden" }} />
       {children}
     </div>
   );
 };
 
-const BottomNav = ({ active, onNav }) => (
-  <div style={{
-    display: "flex", justifyContent: "space-around", alignItems: "center",
-    padding: "12px 0 18px", borderTop: `1px solid rgba(255,255,255,0.06)`,
-    background: "rgba(13,13,20,0.85)", backdropFilter: "blur(20px)",
-    position: "sticky", bottom: 0, zIndex: 10,
-  }}>
-    {[
-      { id: "home", icon: "🏠", label: "Home" },
-      { id: "words", icon: "📚", label: "Words" },
-      { id: "practice", icon: "⚡", label: "Practice" },
-      { id: "quiz", icon: "🧩", label: "Quiz" },
-      { id: "journal", icon: "📝", label: "Journal" },
-    ].map((tab) => (
-      <div key={tab.id} onClick={() => onNav(tab.id)} style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        gap: 3, cursor: "pointer", opacity: active === tab.id ? 1 : 0.4,
-        transition: "opacity 0.2s ease",
-      }}>
-        <div style={{ fontSize: 20 }}>{tab.icon}</div>
-        <div style={{
-          fontSize: 9, fontWeight: 600, letterSpacing: 0.5,
-          color: active === tab.id ? T.accent1 : "rgba(255,255,255,0.6)",
-          textTransform: "uppercase",
-        }}>{tab.label}</div>
-        {active === tab.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.accent1, boxShadow: `0 0 8px rgba(255,107,53,0.6)` }} />}
-      </div>
-    ))}
-  </div>
-);
+const BottomNav = ({ active, onNav }) => {
+  const tabs = [
+    { id: "home", icon: "home", label: "Home" },
+    { id: "words", icon: "palette", label: "Palettes" },
+    { id: "practice", icon: "videogame_asset", label: "Games" },
+    { id: "quotebank", icon: "format_quote", label: "Quotes" },
+    { id: "settings", icon: "person", label: "Profile" },
+  ];
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-around", alignItems: "center",
+      padding: "10px 8px 22px",
+      background: "rgba(255,255,255,0.82)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      borderTop: "1px solid rgba(0,0,0,0.04)",
+      borderRadius: "28px 28px 0 0",
+      boxShadow: "0 -4px 24px rgba(0,109,119,0.06)",
+      position: "sticky", bottom: 0, zIndex: 10,
+    }}>
+      {tabs.map((tab) => {
+        const isActive = active === tab.id || (tab.id === "words" && active === "palettes") || (tab.id === "practice" && (active === "wordle" || active === "crossword" || active === "quadword" || active === "quiz"));
+        return (
+          <div key={tab.id} onClick={() => onNav(tab.id)} style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 2, cursor: "pointer",
+            padding: isActive ? "6px 16px" : "6px 12px",
+            borderRadius: 20,
+            background: isActive ? "rgba(161,242,254,0.45)" : "transparent",
+            transition: "all 0.2s ease",
+          }}>
+            <span className="material-symbols-outlined" style={{
+              fontSize: 22,
+              color: isActive ? T.accent1 : T.outline,
+              fontVariationSettings: isActive ? "'FILL' 1, 'wght' 500" : "'FILL' 0, 'wght' 400",
+              transition: "all 0.2s ease",
+            }}>{tab.icon}</span>
+            <div style={{
+              fontSize: 10, fontWeight: isActive ? 700 : 600, letterSpacing: 0.5,
+              color: isActive ? T.accent1 : T.outline,
+              textTransform: "uppercase",
+            }}>{tab.label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /* ════════════════════════════════════════════
    SCREEN: ONBOARDING
@@ -3621,7 +3685,7 @@ function OnboardingScreen({ onComplete }) {
           {[0, 1, 2].map((i) => (
             <div key={i} style={{
               width: i === step ? 28 : 8, height: 8, borderRadius: 4,
-              background: i === step ? gradient : i < step ? T.accent1 : "rgba(255,255,255,0.1)",
+              background: i === step ? gradient : i < step ? T.accent1 : "rgba(0,0,0,0.05)",
               transition: "all 0.4s ease",
             }} />
           ))}
@@ -3642,7 +3706,7 @@ function OnboardingScreen({ onComplete }) {
             </div>
 
             <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 20, marginBottom: 32 }}>
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", fontFamily: T.serif, lineHeight: 1.6, margin: 0, textAlign: "center" }}>
+              <p style={{ fontSize: 16, color: "rgba(41,47,59,0.85)", fontFamily: T.serif, lineHeight: 1.6, margin: 0, textAlign: "center" }}>
                 Hey! 👋<br />
                 <span style={{ color: T.muted, fontSize: 14, fontFamily: T.sans }}>
                   Let's set up your vocabulary journey. It only takes a minute.
@@ -3672,9 +3736,9 @@ function OnboardingScreen({ onComplete }) {
               {["Year 10", "Year 11", "Year 12"].map((y) => (
                 <button key={y} onClick={() => handleYearChange(y)} style={{
                   flex: 1, padding: "16px 8px", borderRadius: 14, cursor: "pointer",
-                  background: year === y ? "rgba(255,107,53,0.15)" : T.card,
+                  background: year === y ? "rgba(0,101,111,0.10)" : T.card,
                   border: year === y ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`,
-                  color: year === y ? T.accent1 : "rgba(255,255,255,0.7)",
+                  color: year === y ? T.accent1 : "rgba(41,47,59,0.55)",
                   fontSize: 14, fontWeight: 600, fontFamily: T.sans, transition: "all 0.25s ease",
                 }}>{y}</button>
               ))}
@@ -3695,21 +3759,21 @@ function OnboardingScreen({ onComplete }) {
                   <button key={t.id} onClick={() => toggleText(t.id)} style={{
                     display: "flex", alignItems: "center", gap: 14, padding: "16px 18px",
                     borderRadius: 16, cursor: "pointer", textAlign: "left",
-                    background: sel ? "rgba(255,107,53,0.1)" : T.card,
+                    background: sel ? "rgba(0,101,111,0.08)" : T.card,
                     border: sel ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`,
                     transition: "all 0.25s ease",
                   }}>
                     <span style={{ fontSize: 28 }}>{t.icon}</span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: sel ? T.white : "rgba(255,255,255,0.8)", fontFamily: T.sans }}>{t.name}</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: sel ? T.white : "rgba(41,47,59,0.70)", fontFamily: T.sans }}>{t.name}</div>
                       <div style={{ fontSize: 12, color: T.muted }}>{t.author}</div>
                     </div>
                     <div style={{
                       width: 24, height: 24, borderRadius: "50%",
-                      background: sel ? gradient : "rgba(255,255,255,0.08)",
-                      border: sel ? "none" : `1px solid rgba(255,255,255,0.15)`,
+                      background: sel ? gradient : "rgba(0,0,0,0.04)",
+                      border: sel ? "none" : `1px solid rgba(0,0,0,0.12)`,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 14, color: "#fff", transition: "all 0.25s ease",
+                      fontSize: 14, color: "#292f3b", transition: "all 0.25s ease",
                     }}>{sel && "✓"}</div>
                   </button>
                 );
@@ -3731,13 +3795,13 @@ function OnboardingScreen({ onComplete }) {
                   <button key={g.id} onClick={() => setGoal(g.id)} style={{
                     display: "flex", alignItems: "center", gap: 14, padding: "18px 18px",
                     borderRadius: 16, cursor: "pointer", textAlign: "left",
-                    background: sel ? "rgba(255,107,53,0.1)" : T.card,
+                    background: sel ? "rgba(0,101,111,0.08)" : T.card,
                     border: sel ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`,
                     transition: "all 0.25s ease",
                   }}>
                     <span style={{ fontSize: 28 }}>{g.icon}</span>
                     <div>
-                      <div style={{ fontSize: 16, fontWeight: 600, color: sel ? T.white : "rgba(255,255,255,0.8)", fontFamily: T.sans }}>{g.label}</div>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: sel ? T.white : "rgba(41,47,59,0.70)", fontFamily: T.sans }}>{g.label}</div>
                       <div style={{ fontSize: 12, color: T.muted }}>{g.subtitle}</div>
                     </div>
                   </button>
@@ -3803,15 +3867,15 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 13, color: T.muted, fontWeight: 500, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{greeting}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.serif, background: `linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.7))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.serif, background: `linear-gradient(135deg, #292f3b 30%, rgba(41,47,59,0.7))`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               {user.name}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 5,
-              background: "rgba(255,107,53,0.12)", borderRadius: 20, padding: "6px 12px 6px 8px",
-              border: "1px solid rgba(255,107,53,0.2)",
+              background: "rgba(0,101,111,0.08)", borderRadius: 20, padding: "6px 12px 6px 8px",
+              border: "1px solid rgba(0,101,111,0.12)",
             }}>
               <div style={{ animation: "flameDance 2s ease-in-out infinite" }}><StreakFlame size={22} /></div>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.accent1 }}>{gameState.streak || 0}</span>
@@ -3819,13 +3883,13 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
             <div onClick={() => onNav("settings")} style={{
               width: 42, height: 42, borderRadius: "50%", background: gradient,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 17, fontWeight: 700, color: "#fff", cursor: "pointer", position: "relative",
+              fontSize: 17, fontWeight: 700, color: "#292f3b", cursor: "pointer", position: "relative",
             }}>
               {user.name[0]?.toUpperCase() || "A"}
               <div style={{
                 position: "absolute", bottom: -1, right: -1, width: 14, height: 14,
-                borderRadius: "50%", background: "#1c1c28", display: "flex", alignItems: "center", justifyContent: "center",
-                border: `2px solid #1c1c28`,
+                borderRadius: "50%", background: "#ecf0ff", display: "flex", alignItems: "center", justifyContent: "center",
+                border: `2px solid #ecf0ff`,
               }}><span style={{ fontSize: 8 }}>⚙️</span></div>
             </div>
           </div>
@@ -3841,7 +3905,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
               {levelData.xpInLevel} / {levelData.xpToNext} XP
             </span>
           </div>
-          <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+          <div style={{ height: 6, borderRadius: 3, background: "rgba(0,0,0,0.04)", overflow: "hidden" }}>
             <div style={{
               height: "100%", borderRadius: 3,
               width: `${Math.min(100, (levelData.xpInLevel / Math.max(1, levelData.xpToNext)) * 100)}%`,
@@ -3855,24 +3919,24 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
           background: gradient, borderRadius: 22, padding: 22, marginBottom: 20, cursor: "pointer",
           position: "relative", overflow: "hidden", animation: remaining > 0 ? "pulseGlow 3s ease-in-out infinite" : "none",
         }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+          <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(0,0,0,0.04)" }} />
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>Daily Practice</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: T.serif, marginBottom: 4, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(41,47,59,0.65)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 }}>Daily Practice</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: "#292f3b", fontFamily: T.serif, marginBottom: 4, lineHeight: 1.2 }}>
                   {remaining > 0 ? `${remaining} words remaining` : "All done today! 🎉"}
                 </div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{goal} new · {reviewWords} reviews · ~{Math.ceil(totalWords * 0.8)} min</div>
+                <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)" }}>{goal} new · {reviewWords} reviews · ~{Math.ceil(totalWords * 0.8)} min</div>
               </div>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(0,101,111,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
                 {remaining > 0 ? "▶" : "✓"}
               </div>
             </div>
-            <div style={{ marginTop: 16, height: 8, borderRadius: 4, background: "rgba(0,0,0,0.2)", overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 4, width: `${Math.min(100, (done / totalWords) * 100)}%`, background: "rgba(255,255,255,0.9)", boxShadow: "0 0 10px rgba(255,255,255,0.3)", transition: "width 0.5s ease" }} />
+            <div style={{ marginTop: 16, height: 8, borderRadius: 4, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 4, width: `${Math.min(100, (done / totalWords) * 100)}%`, background: T.accent1, boxShadow: "0 0 10px rgba(0,101,111,0.2)", transition: "width 0.5s ease" }} />
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 6, fontWeight: 500 }}>{done}/{totalWords} complete</div>
+            <div style={{ fontSize: 11, color: "rgba(41,47,59,0.55)", marginTop: 6, fontWeight: 500 }}>{done}/{totalWords} complete</div>
           </div>
         </div>
 
@@ -3880,21 +3944,21 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
         {todayWord && <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, padding: 20, marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <SectionLabel>Word of the Day</SectionLabel>
-            <div onClick={() => speak(todayWord.word)} style={{ fontSize: 10, fontWeight: 500, background: "rgba(168,85,247,0.15)", color: "#C084FC", padding: "3px 10px", borderRadius: 20, border: "1px solid rgba(168,85,247,0.2)", cursor: "pointer" }}>🔊 Listen</div>
+            <div onClick={() => speak(todayWord.word)} style={{ fontSize: 10, fontWeight: 500, background: "rgba(154,61,63,0.10)", color: T.accent3, padding: "3px 10px", borderRadius: 20, border: "1px solid rgba(0,101,111,0.15)", cursor: "pointer" }}>🔊 Listen</div>
           </div>
           <div style={{ fontSize: 30, fontWeight: 700, fontFamily: T.serif, background: `linear-gradient(135deg, #FFE066 0%, ${T.accent1} 50%, ${T.accent2} 100%)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 4 }}>
             {todayWord.word}
           </div>
           <div style={{ fontSize: 13, color: T.dimmed, fontStyle: "italic", marginBottom: 10, fontFamily: T.serif }}>{todayWord.pronunciation}</div>
-          <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.55, marginBottom: 12 }}>{todayWord.definition}</div>
+          <div style={{ fontSize: 14, color: "rgba(41,47,59,0.65)", lineHeight: 1.55, marginBottom: 12 }}>{todayWord.definition}</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {todayWord.tags.map((tag, i) => (
               <span key={i} style={{
                 fontSize: 10, fontWeight: 600,
-                background: i === 0 ? "rgba(52,199,89,0.12)" : "rgba(255,107,53,0.12)",
+                background: i === 0 ? "rgba(52,199,89,0.12)" : "rgba(0,101,111,0.08)",
                 color: i === 0 ? T.green : T.accent1,
                 padding: "4px 10px", borderRadius: 20,
-                border: `1px solid ${i === 0 ? "rgba(52,199,89,0.2)" : "rgba(255,107,53,0.2)"}`,
+                border: `1px solid ${i === 0 ? "rgba(52,199,89,0.2)" : "rgba(0,101,111,0.12)"}`,
               }}>{tag}</span>
             ))}
           </div>
@@ -3915,7 +3979,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
                 transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)",
               }}>
                 <div style={{ fontSize: 26, marginBottom: 6 }}>{p.icon}</div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", letterSpacing: 0.3 }}>{p.name}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(41,47,59,0.85)", letterSpacing: 0.3 }}>{p.name}</div>
                 <div style={{ fontSize: 9, color: T.muted, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>Tap to play</div>
               </div>
             ))}
@@ -3931,17 +3995,17 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
               background: T.card, border: `1px solid ${T.cardBorder}`,
               borderRadius: 16, padding: "16px 18px", cursor: "pointer",
               transition: "all 0.2s ease",
-              borderLeft: "3px solid #A855F7",
+              borderLeft: "3px solid #00656f",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
-                background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.25)",
+                background: "rgba(0,101,111,0.08)", border: "1px solid rgba(154,61,63,0.15)",
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
               }}>🎨</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Word Palettes</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(41,47,59,0.90)" }}>Word Palettes</div>
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>41 themed collections · 574 words by intensity</div>
               </div>
               <span style={{ fontSize: 16, color: T.muted }}>›</span>
@@ -3954,17 +4018,17 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
               background: T.card, border: `1px solid ${T.cardBorder}`,
               borderRadius: 16, padding: "16px 18px", cursor: "pointer",
               transition: "all 0.2s ease", marginTop: 10,
-              borderLeft: "3px solid #FFD60A",
+              borderLeft: "3px solid #D4A017",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
-                background: "rgba(255,214,10,0.12)", border: "1px solid rgba(255,214,10,0.25)",
+                background: "rgba(212,160,23,0.12)", border: "1px solid rgba(212,160,23,0.25)",
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
               }}>💬</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Quote Bank</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(41,47,59,0.90)" }}>Quote Bank</div>
                 <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>
                   {(quotes || []).length} quote{(quotes || []).length !== 1 ? "s" : ""} saved
                   {(() => {
@@ -3989,11 +4053,11 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
               {dueWords.map((w) => (
                 <div key={w.id} onClick={() => onNav("cards", { wordId: w.id, returnTo: "home" })} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "10px 14px", background: "rgba(255,107,53,0.06)", borderRadius: 12,
-                  border: "1px solid rgba(255,107,53,0.12)", cursor: "pointer", transition: "all 0.2s ease",
+                  padding: "10px 14px", background: "rgba(0,101,111,0.05)", borderRadius: 12,
+                  border: "1px solid rgba(0,101,111,0.08)", cursor: "pointer", transition: "all 0.2s ease",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.serif }}>{w.word}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.serif }}>{w.word}</span>
                     <StrengthDots level={w.strength} />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -4023,7 +4087,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
             <div style={{ fontSize: 26, fontWeight: 700, color: T.green, fontFamily: T.serif }}>{accuracy || "—"}%</div>
             <div style={{ fontSize: 10, color: T.muted }}>accuracy</div>
           </div>
-          <div style={{ flex: 1, background: "linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,107,53,0.06))", border: "1px solid rgba(255,214,10,0.15)", borderRadius: 18, padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div style={{ flex: 1, background: "linear-gradient(135deg, rgba(255,202,83,0.10), rgba(0,101,111,0.05))", border: "1px solid rgba(212,160,23,0.15)", borderRadius: 18, padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <SectionLabel>Total XP</SectionLabel>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 36, marginBottom: 6 }}>⭐</div>
@@ -4042,7 +4106,7 @@ function HomeScreen({ onNav, userPrefs, wordsDB, gameState, badges, quotes }) {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 24 }}>{latestBadge ? latestBadge.icon : "🏅"}</span>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(41,47,59,0.85)" }}>
                 {latestBadge ? latestBadge.name : "No badges yet"}
               </div>
               <div style={{ fontSize: 11, color: T.muted }}>
@@ -4131,9 +4195,9 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
             <button key={f.id} onClick={() => { setFilter(f.id); setIdx(0); setRevealed(false); setFlipped(false); }} style={{
               padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
               fontFamily: T.sans, cursor: "pointer", whiteSpace: "nowrap",
-              background: filter === f.id ? "rgba(255,107,53,0.15)" : "rgba(255,255,255,0.05)",
+              background: filter === f.id ? "rgba(0,101,111,0.10)" : "rgba(0,0,0,0.03)",
               color: filter === f.id ? T.accent1 : T.muted,
-              border: filter === f.id ? `1px solid rgba(255,107,53,0.3)` : `1px solid ${T.cardBorder}`,
+              border: filter === f.id ? `1px solid rgba(0,101,111,0.15)` : `1px solid ${T.cardBorder}`,
               transition: "all 0.2s ease",
             }}>{f.label}</button>
           ))}
@@ -4156,8 +4220,8 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
             <div style={{
               position: flipped ? "absolute" : "relative", top: 0, left: 0, width: "100%",
               minHeight: 440, borderRadius: 24, padding: 24,
-              background: "linear-gradient(145deg, rgba(255,107,53,0.10), rgba(255,45,85,0.06))",
-              border: "1px solid rgba(255,107,53,0.15)",
+              background: "linear-gradient(145deg, rgba(0,101,111,0.08), rgba(118,86,0,0.05))",
+              border: "1px solid rgba(0,101,111,0.10)",
               backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
               zIndex: flipped ? 0 : 1, pointerEvents: flipped ? "none" : "auto",
             }}>
@@ -4176,8 +4240,8 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 14, color: T.dimmed, fontStyle: "italic", fontFamily: T.serif }}>{word.pronunciation}</span>
                 <button onClick={(e) => { e.stopPropagation(); speak(word.word); }} style={{
-                  background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.2)",
-                  borderRadius: 14, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: "#C084FC", fontWeight: 500, fontFamily: T.sans,
+                  background: "rgba(154,61,63,0.10)", border: "1px solid rgba(0,101,111,0.15)",
+                  borderRadius: 14, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: T.accent3, fontWeight: 500, fontFamily: T.sans,
                 }}>🔊</button>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20 }}>
@@ -4192,24 +4256,24 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
 
               {!revealed ? (
                 <div style={{ textAlign: "center", paddingTop: 20 }}>
-                  <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 16px", background: "rgba(255,255,255,0.04)", border: `2px dashed rgba(255,255,255,0.12)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>🤔</div>
+                  <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 16px", background: "rgba(0,0,0,0.02)", border: `2px dashed rgba(0,0,0,0.10)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>🤔</div>
                   <div style={{ fontSize: 15, color: T.muted, marginBottom: 6 }}>Do you know this word?</div>
                   <div style={{ fontSize: 12, color: T.dimmed }}>Think about the meaning, then reveal</div>
                   <button onClick={handleReveal} style={{
                     marginTop: 20, padding: "14px 40px", borderRadius: 16,
-                    background: gradient, border: "none", color: "#fff",
+                    background: gradient, border: "none", color: "#292f3b",
                     fontSize: 15, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
-                    boxShadow: "0 4px 20px rgba(255,107,53,0.3)", transition: "all 0.2s ease",
+                    boxShadow: "0 4px 20px rgba(0,101,111,0.15)", transition: "all 0.2s ease",
                   }}>Reveal Definition</button>
                 </div>
               ) : (
                 <div style={{ animation: "fadeSlideUp 0.4s ease both" }}>
-                  <div style={{ width: "100%", height: 1, margin: "0 0 16px", background: "linear-gradient(90deg, transparent, rgba(255,107,53,0.3), transparent)" }} />
-                  <div style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, marginBottom: 20 }}>{word.definition}</div>
+                  <div style={{ width: "100%", height: 1, margin: "0 0 16px", background: "linear-gradient(90deg, transparent, rgba(0,101,111,0.15), transparent)" }} />
+                  <div style={{ fontSize: 16, color: "rgba(41,47,59,0.85)", lineHeight: 1.6, marginBottom: 20 }}>{word.definition}</div>
                   <SectionLabel>Synonyms</SectionLabel>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {word.synonyms.map((s, i) => (
-                      <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.65)", border: `1px solid ${T.cardBorder}` }}>{s}</span>
+                      <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: "rgba(0,0,0,0.04)", color: "rgba(41,47,59,0.60)", border: `1px solid ${T.cardBorder}` }}>{s}</span>
                     ))}
                   </div>
                 </div>
@@ -4220,20 +4284,20 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
             <div style={{
               position: flipped ? "relative" : "absolute", top: 0, left: 0, width: "100%",
               minHeight: 440, borderRadius: 24, padding: 24,
-              background: "linear-gradient(145deg, rgba(168,85,247,0.12), rgba(255,45,85,0.08))",
-              border: "1px solid rgba(168,85,247,0.2)",
+              background: "linear-gradient(145deg, rgba(0,101,111,0.08), rgba(118,86,0,0.06))",
+              border: "1px solid rgba(0,101,111,0.15)",
               backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden",
               transform: "rotateY(180deg)", zIndex: flipped ? 1 : 0, pointerEvents: flipped ? "auto" : "none",
             }}>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: T.serif, color: T.white, marginBottom: 4, lineHeight: 1.2 }}>{word.word}</div>
               <div style={{ fontSize: 13, color: T.dimmed, fontStyle: "italic", fontFamily: T.serif, marginBottom: 18 }}>{word.pronunciation}</div>
               <SectionLabel>Text Context</SectionLabel>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, marginBottom: 20, fontStyle: "italic" }}>{word.textContext}</div>
+              <div style={{ fontSize: 14, color: "rgba(41,47,59,0.65)", lineHeight: 1.6, marginBottom: 20, fontStyle: "italic" }}>{word.textContext}</div>
               <SectionLabel>Example Sentences</SectionLabel>
               {word.examples.map((ex, i) => (
-                <div key={i} style={{ marginBottom: 12, padding: "12px 14px", background: "rgba(255,255,255,0.04)", borderRadius: 12, border: `1px solid ${T.cardBorder}` }}>
+                <div key={i} style={{ marginBottom: 12, padding: "12px 14px", background: "rgba(0,0,0,0.02)", borderRadius: 12, border: `1px solid ${T.cardBorder}` }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: T.accent3, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>{ex.source}</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>{ex.text}</div>
+                  <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)", lineHeight: 1.55 }}>{ex.text}</div>
                 </div>
               ))}
             </div>
@@ -4243,9 +4307,9 @@ function WordCardsScreen({ onNav, startWordId, returnTo, wordsDB, updateWord, ra
         <button onClick={doFlip} disabled={!revealed} style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           width: "100%", padding: "12px 0", borderRadius: 14, cursor: revealed ? "pointer" : "default",
-          background: !revealed ? "rgba(255,255,255,0.03)" : flipped ? "rgba(168,85,247,0.1)" : "rgba(255,107,53,0.08)",
-          border: `1px solid ${!revealed ? "rgba(255,255,255,0.06)" : flipped ? "rgba(168,85,247,0.25)" : "rgba(255,107,53,0.2)"}`,
-          color: !revealed ? "rgba(255,255,255,0.2)" : flipped ? "#C084FC" : T.accent1,
+          background: !revealed ? "rgba(0,0,0,0.02)" : flipped ? "rgba(154,61,63,0.08)" : "rgba(0,101,111,0.06)",
+          border: `1px solid ${!revealed ? "rgba(0,0,0,0.04)" : flipped ? "rgba(154,61,63,0.15)" : "rgba(0,101,111,0.12)"}`,
+          color: !revealed ? "rgba(41,47,59,0.25)" : flipped ? T.accent3 : T.accent1,
           fontSize: 13, fontWeight: 600, fontFamily: T.sans, transition: "all 0.3s ease", marginBottom: 16, opacity: revealed ? 1 : 0.4,
         }}>
           <span style={{ fontSize: 16 }}>🔄</span>
@@ -4311,7 +4375,7 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
               <span style={{ fontSize: 12, color: T.muted }}>{stats.learned} mastered · {stats.learning} learning · {stats.total} total</span>
             </div>
           </div>
-          <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden", margin: "16px 0 24px" }}>
+          <div style={{ height: 6, borderRadius: 3, background: "rgba(0,0,0,0.04)", overflow: "hidden", margin: "16px 0 24px" }}>
             <div style={{ height: "100%", borderRadius: 3, width: `${stats.total > 0 ? (stats.learned / stats.total) * 100 : 0}%`, background: list.color }} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -4323,10 +4387,10 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.serif }}>{w.word}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.serif }}>{w.word}</span>
                     <span style={{
                       fontSize: 9, fontWeight: 600, padding: "2px 8px", borderRadius: 10, textTransform: "capitalize",
-                      background: w.status === "new" ? "rgba(255,107,53,0.12)" : w.status === "learning" ? "rgba(255,214,10,0.12)" : w.status === "familiar" ? "rgba(52,199,89,0.12)" : "rgba(6,214,160,0.12)",
+                      background: w.status === "new" ? "rgba(0,101,111,0.08)" : w.status === "learning" ? "rgba(212,160,23,0.12)" : w.status === "familiar" ? "rgba(52,199,89,0.12)" : "rgba(6,214,160,0.12)",
                       color: w.status === "new" ? T.accent1 : w.status === "learning" ? T.yellow : w.status === "familiar" ? T.green : T.cyan,
                     }}>{w.status}</span>
                   </div>
@@ -4382,9 +4446,9 @@ function WordListsScreen({ onNav, wordsDB, userPrefs }) {
               }}>
                 <span style={{ fontSize: 26 }}>{l.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{l.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(41,47,59,0.85)" }}>{l.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(0,0,0,0.04)", overflow: "hidden" }}>
                       <div style={{ height: "100%", borderRadius: 2, width: `${st.total > 0 ? (st.learned / st.total) * 100 : 0}%`, background: l.color }} />
                     </div>
                     <span style={{ fontSize: 11, color: T.muted, whiteSpace: "nowrap" }}>{st.learned}/{st.total}</span>
@@ -4526,10 +4590,10 @@ function PracticeScreen({ onNav, userPrefs, wordsDB, updateWord, completePractic
           <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{step + 1} / {total}</span>
           <span style={{
             fontSize: 11, fontWeight: 600, color: T.accent1,
-            background: "rgba(255,107,53,0.12)", padding: "4px 12px", borderRadius: 20,
+            background: "rgba(0,101,111,0.08)", padding: "4px 12px", borderRadius: 20,
           }}>{phase === "learn" ? "📖 Learn" : "🧩 Review"}</span>
         </div>
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", marginBottom: 24, overflow: "hidden" }}>
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(0,0,0,0.04)", marginBottom: 24, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 2, width: `${((step + 1) / total) * 100}%`, background: gradient, transition: "width 0.5s ease" }} />
         </div>
 
@@ -4539,28 +4603,28 @@ function PracticeScreen({ onNav, userPrefs, wordsDB, updateWord, completePractic
               <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase" }}>New Word</span>
             </div>
             <div style={{
-              background: "linear-gradient(145deg, rgba(255,107,53,0.10), rgba(168,85,247,0.06))",
-              border: `1px solid rgba(255,107,53,0.15)`, borderRadius: 24, padding: 28, textAlign: "center", marginBottom: 20,
+              background: "linear-gradient(145deg, rgba(0,101,111,0.08), rgba(154,61,63,0.05))",
+              border: `1px solid rgba(0,101,111,0.10)`, borderRadius: 24, padding: 28, textAlign: "center", marginBottom: 20,
             }}>
               <div style={{ fontSize: 38, fontWeight: 700, fontFamily: T.serif, color: T.white, marginBottom: 6 }}>{word.word}</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
                 <span style={{ fontSize: 14, color: T.dimmed, fontStyle: "italic", fontFamily: T.serif }}>{word.pronunciation}</span>
                 <button onClick={() => speak(word.word)} style={{
-                  background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.2)",
-                  borderRadius: 14, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: "#C084FC", fontWeight: 500, fontFamily: T.sans,
+                  background: "rgba(154,61,63,0.10)", border: "1px solid rgba(0,101,111,0.15)",
+                  borderRadius: 14, padding: "2px 8px", cursor: "pointer", fontSize: 10, color: T.accent3, fontWeight: 500, fontFamily: T.sans,
                 }}>🔊</button>
               </div>
               <div style={{ width: 40, height: 2, background: gradient, borderRadius: 1, margin: "0 auto 16px" }} />
-              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.8)", lineHeight: 1.65 }}>{word.definition}</div>
+              <div style={{ fontSize: 16, color: "rgba(41,47,59,0.80)", lineHeight: 1.65 }}>{word.definition}</div>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 20 }}>
               {word.synonyms.slice(0, 4).map((s, i) => (
-                <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: `1px solid ${T.cardBorder}` }}>{s}</span>
+                <span key={i} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, background: "rgba(0,0,0,0.04)", color: "rgba(41,47,59,0.55)", border: `1px solid ${T.cardBorder}` }}>{s}</span>
               ))}
             </div>
             <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 14, marginBottom: 24 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: T.accent1, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>In Context</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.55, fontStyle: "italic" }}>{word.textContext}</div>
+              <div style={{ fontSize: 13, color: "rgba(41,47,59,0.60)", lineHeight: 1.55, fontStyle: "italic" }}>{word.textContext}</div>
             </div>
             <Btn onClick={nextWord}>Got It — Next →</Btn>
           </div>
@@ -4578,12 +4642,12 @@ function PracticeScreen({ onNav, userPrefs, wordsDB, updateWord, completePractic
                 let bg = T.card, border = T.cardBorder;
                 if (showResult && isCorrect) { bg = "rgba(52,199,89,0.12)"; border = "rgba(52,199,89,0.4)"; }
                 else if (showResult && isSelected && !isCorrect) { bg = "rgba(255,59,48,0.12)"; border = "rgba(255,59,48,0.4)"; }
-                else if (isSelected) { bg = "rgba(255,107,53,0.1)"; border = "rgba(255,107,53,0.3)"; }
+                else if (isSelected) { bg = "rgba(0,101,111,0.08)"; border = "rgba(0,101,111,0.15)"; }
                 return (
                   <button key={i} onClick={() => !showResult && handleAnswer(opt)} style={{
                     padding: "16px 18px", borderRadius: 14, textAlign: "left",
                     background: bg, border: `1px solid ${border}`, cursor: showResult ? "default" : "pointer",
-                    fontSize: 14, color: "rgba(255,255,255,0.8)", fontFamily: T.sans, lineHeight: 1.5, transition: "all 0.2s ease",
+                    fontSize: 14, color: "rgba(41,47,59,0.80)", fontFamily: T.sans, lineHeight: 1.5, transition: "all 0.2s ease",
                   }}>{opt}</button>
                 );
               })}
@@ -4670,7 +4734,7 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
               }}>
                 <span style={{ fontSize: 26 }}>📅</span>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.sans }}>Daily Quiz</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.sans }}>Daily Quiz</div>
                   <div style={{ fontSize: 12, color: T.muted }}>10 fresh questions from your word bank · changes daily</div>
                 </div>
               </button>
@@ -4681,7 +4745,7 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
               }}>
                 <span style={{ fontSize: 26 }}>🏆</span>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.sans }}>Curated Challenge</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.sans }}>Curated Challenge</div>
                   <div style={{ fontSize: 12, color: T.muted }}>16 hand-crafted literary questions</div>
                 </div>
               </button>
@@ -4721,12 +4785,12 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
           <BackBtn onClick={() => { resetQuiz(); setMode(null); }} label="Back" />
           <span style={{ fontSize: 13, color: T.muted }}>{qIdx + 1} / {total}</span>
         </div>
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", marginBottom: 28, overflow: "hidden" }}>
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(0,0,0,0.04)", marginBottom: 28, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 2, width: `${((qIdx + 1) / total) * 100}%`, background: gradient, transition: "width 0.5s ease" }} />
         </div>
         <div style={{
           fontSize: 11, fontWeight: 600, color: T.accent3, letterSpacing: 1, textTransform: "uppercase",
-          marginBottom: 12, background: "rgba(168,85,247,0.12)", display: "inline-block", padding: "4px 12px", borderRadius: 20,
+          marginBottom: 12, background: "rgba(0,101,111,0.08)", display: "inline-block", padding: "4px 12px", borderRadius: 20,
         }}>
           {q.type === "multiple_choice" ? "Multiple Choice" : "Fill in the Blank"}
         </div>
@@ -4735,10 +4799,10 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
         {q.type === "multiple_choice" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
             {q.options.map((opt, i) => {
-              let bg = T.card, border = T.cardBorder, col = "rgba(255,255,255,0.8)";
+              let bg = T.card, border = T.cardBorder, col = "rgba(41,47,59,0.80)";
               if (showResult && i === q.correct) { bg = "rgba(52,199,89,0.12)"; border = "rgba(52,199,89,0.4)"; col = T.green; }
               else if (showResult && selected === i && i !== q.correct) { bg = "rgba(255,59,48,0.12)"; border = "rgba(255,59,48,0.4)"; col = "#FF3B30"; }
-              else if (selected === i) { bg = "rgba(255,107,53,0.1)"; border = "rgba(255,107,53,0.3)"; }
+              else if (selected === i) { bg = "rgba(0,101,111,0.08)"; border = "rgba(0,101,111,0.15)"; }
               return (
                 <button key={i} onClick={() => !showResult && setSelected(i)} style={{
                   padding: "16px 18px", borderRadius: 14, textAlign: "left",
@@ -4770,8 +4834,8 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
         )}
 
         {showResult && (
-          <div style={{ padding: 16, borderRadius: 14, marginBottom: 16, animation: "fadeSlideUp 0.3s ease both", background: "rgba(255,255,255,0.04)", border: `1px solid ${T.cardBorder}` }}>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>{q.explanation}</div>
+          <div style={{ padding: 16, borderRadius: 14, marginBottom: 16, animation: "fadeSlideUp 0.3s ease both", background: "rgba(0,0,0,0.02)", border: `1px solid ${T.cardBorder}` }}>
+            <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)", lineHeight: 1.55 }}>{q.explanation}</div>
           </div>
         )}
 
@@ -4816,24 +4880,24 @@ function JournalScreen({ onNav, entries, setEntries }) {
           </div>
           <button onClick={() => setAdding(!adding)} style={{
             width: 40, height: 40, borderRadius: "50%", background: gradient,
-            border: "none", color: "#fff", fontSize: 22, cursor: "pointer",
+            border: "none", color: "#292f3b", fontSize: 22, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 15px rgba(255,107,53,0.3)",
+            boxShadow: "0 4px 15px rgba(0,101,111,0.15)",
             transform: adding ? "rotate(45deg)" : "none", transition: "transform 0.3s ease",
           }}>+</button>
         </div>
 
         {adding && (
           <div style={{
-            background: "linear-gradient(145deg, rgba(255,107,53,0.08), rgba(168,85,247,0.05))",
-            border: `1px solid rgba(255,107,53,0.15)`, borderRadius: 18, padding: 18,
+            background: "linear-gradient(145deg, rgba(0,101,111,0.06), rgba(0,88,97,0.04))",
+            border: `1px solid rgba(0,101,111,0.10)`, borderRadius: 18, padding: 18,
             marginBottom: 16, animation: "fadeSlideUp 0.3s ease both",
           }}>
             <input type="text" value={addWord} onChange={(e) => setAddWord(e.target.value)} placeholder="Word..."
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, marginBottom: 10, background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`, color: T.white, fontSize: 16, fontFamily: T.serif, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, marginBottom: 10, background: "rgba(0,0,0,0.04)", border: `1px solid ${T.cardBorder}`, color: T.white, fontSize: 16, fontFamily: T.serif, fontWeight: 600, outline: "none", boxSizing: "border-box" }}
             />
             <textarea value={addNote} onChange={(e) => setAddNote(e.target.value)} placeholder="Your notes, mnemonics, associations..." rows={3}
-              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, marginBottom: 12, background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`, color: T.white, fontSize: 13, fontFamily: T.sans, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "12px 14px", borderRadius: 10, marginBottom: 12, background: "rgba(0,0,0,0.04)", border: `1px solid ${T.cardBorder}`, color: T.white, fontSize: 13, fontFamily: T.sans, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}
             />
             <Btn onClick={addEntry} disabled={!addWord.trim() || !addNote.trim()} style={{ padding: "10px 20px", fontSize: 13 }}>Save Entry</Btn>
           </div>
@@ -4851,7 +4915,7 @@ function JournalScreen({ onNav, entries, setEntries }) {
               {editing === i ? (
                 <div>
                   <textarea value={newNote} onChange={(e) => setNewNote(e.target.value)} rows={3}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, marginBottom: 10, background: "rgba(255,255,255,0.06)", border: `1px solid rgba(255,107,53,0.2)`, color: T.white, fontSize: 13, fontFamily: T.sans, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, marginBottom: 10, background: "rgba(0,0,0,0.04)", border: `1px solid rgba(0,101,111,0.12)`, color: T.white, fontSize: 13, fontFamily: T.sans, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box" }}
                   />
                   <div style={{ display: "flex", gap: 8 }}>
                     <Btn onClick={() => saveEdit(i)} style={{ padding: "8px 16px", fontSize: 12, flex: 1 }}>Save</Btn>
@@ -4860,7 +4924,7 @@ function JournalScreen({ onNav, entries, setEntries }) {
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", lineHeight: 1.65 }}>{entry.note}</div>
+                  <div style={{ fontSize: 14, color: "rgba(41,47,59,0.65)", lineHeight: 1.65 }}>{entry.note}</div>
                   <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
                     <button onClick={() => { setEditing(i); setNewNote(entry.note); }} style={{ background: "none", border: "none", color: T.accent1, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: T.sans }}>Edit</button>
                     <button onClick={() => deleteEntry(i)} style={{ background: "none", border: "none", color: "#FF3B30", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: T.sans }}>Delete</button>
@@ -5017,13 +5081,15 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
   };
   const difficulties = { easy: { guesses: 7, showHint: true }, medium: { guesses: 6, showHint: true }, hard: { guesses: 5, showHint: false } };
 
+  const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
   const [difficulty, setDifficulty] = useState(() => {
     const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
-    return prefs?.wordle || null;
+    const saved = prefs?.wordle;
+    return VALID_DIFFICULTIES.includes(saved) ? saved : null;
   });
   // Date-seeded: same day = same puzzle, cycles through all words before repeating
   const dayNumber = useMemo(() => Math.floor(Date.now() / 86400000), []);
-  const pool = difficulty ? wordPools[difficulty] : [];
+  const pool = (difficulty && wordPools[difficulty]) ? wordPools[difficulty] : [];
   const puzzle = pool.length > 0 ? pool[dayNumber % pool.length] : { word: "MOTIF", hint: "", def: "" };
   const answer = puzzle?.word || "MOTIF";
   const [guesses, setGuesses] = useState([]);
@@ -5057,7 +5123,7 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
                 }}>
                   <span style={{ fontSize: 26 }}>{d.icon}</span>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.sans }}>{d.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.sans }}>{d.label}</div>
                     <div style={{ fontSize: 12, color: T.muted }}>{d.desc}</div>
                   </div>
                 </button>
@@ -5069,7 +5135,7 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
     );
   }
 
-  const settings = difficulties[difficulty];
+  const settings = difficulties[difficulty] || difficulties.easy;
   const maxGuesses = settings.guesses;
 
   const getLetterStatus = (guess, pos) => {
@@ -5095,8 +5161,8 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
     return best;
   };
 
-  const statusColors = { correct: T.green, present: T.yellow, absent: "rgba(255,255,255,0.12)", empty: "rgba(255,255,255,0.06)", unused: "rgba(255,255,255,0.1)" };
-  const statusBorders = { correct: "rgba(52,199,89,0.5)", present: "rgba(255,214,10,0.5)", absent: "rgba(255,255,255,0.08)", empty: "rgba(255,255,255,0.1)" };
+  const statusColors = { correct: T.green, present: T.yellow, absent: "rgba(0,0,0,0.08)", empty: "rgba(0,0,0,0.04)", unused: "rgba(0,0,0,0.06)" };
+  const statusBorders = { correct: "rgba(52,199,89,0.5)", present: "rgba(255,214,10,0.5)", absent: "rgba(0,0,0,0.06)", empty: "rgba(0,0,0,0.06)" };
 
   const submitGuess = () => {
     if (current.length !== answer.length) { setShake(true); setTimeout(() => setShake(false), 500); return; }
@@ -5150,8 +5216,8 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
         </div>
 
         {settings.showHint && (
-          <div style={{ textAlign: "center", padding: "8px 16px", marginBottom: 12, background: "rgba(168,85,247,0.08)", borderRadius: 12, border: "1px solid rgba(168,85,247,0.15)" }}>
-            <span style={{ fontSize: 12, color: "#C084FC" }}>💡 {puzzle.hint}</span>
+          <div style={{ textAlign: "center", padding: "8px 16px", marginBottom: 12, background: "rgba(0,101,111,0.06)", borderRadius: 12, border: "1px solid rgba(154,61,63,0.10)" }}>
+            <span style={{ fontSize: 12, color: T.accent3 }}>💡 {puzzle.hint}</span>
           </div>
         )}
 
@@ -5175,9 +5241,9 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
                       width: 52, height: 56, borderRadius: 10,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 22, fontWeight: 700, fontFamily: T.serif,
-                      color: isSubmitted ? "#fff" : "rgba(255,255,255,0.85)",
+                      color: isSubmitted ? "#fff" : "rgba(41,47,59,0.85)",
                       background: isSubmitted ? statusColors[status] : statusColors.empty,
-                      border: `2px solid ${isSubmitted ? statusBorders[status] : letter ? "rgba(255,255,255,0.3)" : statusBorders.empty}`,
+                      border: `2px solid ${isSubmitted ? statusBorders[status] : letter ? "rgba(0,0,0,0.15)" : statusBorders.empty}`,
                       transition: "all 0.3s ease",
                     }}>{letter}</div>
                   );
@@ -5213,8 +5279,8 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
                 return (
                   <button key={key} onClick={() => handleKey(key)} style={{
                     minWidth: isWide ? 52 : 30, height: 42, borderRadius: 8, border: "none",
-                    background: status === "correct" ? T.green : status === "present" ? T.yellow : status === "absent" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
-                    color: status === "absent" ? "rgba(255,255,255,0.25)" : "#fff",
+                    background: status === "correct" ? T.green : status === "present" ? T.yellow : status === "absent" ? "rgba(0,0,0,0.04)" : "rgba(0,0,0,0.08)",
+                    color: status === "absent" ? "rgba(41,47,59,0.30)" : "#fff",
                     fontSize: isWide ? 10 : 14, fontWeight: 700, fontFamily: T.sans, cursor: "pointer", transition: "all 0.15s ease",
                   }}>{key}</button>
                 );
@@ -5231,9 +5297,11 @@ function WordlePuzzle({ onNav, recordWordleSolve }) {
    PUZZLE: MINI CROSSWORD (5x5) — FIXED with valid words
    ════════════════════════════════════════════ */
 function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
+  const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
   const [difficulty, setDifficulty] = useState(() => {
     const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
-    return prefs?.crossword || null;
+    const saved = prefs?.crossword;
+    return VALID_DIFFICULTIES.includes(saved) ? saved : null;
   });
 
   /* ── 20 pre-computed 5×5 crossword grids ──
@@ -5343,9 +5411,9 @@ function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
   const getCellColor = (r, c) => {
     if (isBlack(r, c)) return "#0a0a0f";
     if (solved) return grid[r][c] === layout[r][c] ? "rgba(52,199,89,0.15)" : "rgba(255,59,48,0.1)";
-    if (isSelected(r, c)) return "rgba(255,107,53,0.25)";
-    if (isInActiveWord(r, c)) return "rgba(255,107,53,0.08)";
-    return "rgba(255,255,255,0.04)";
+    if (isSelected(r, c)) return "rgba(0,101,111,0.15)";
+    if (isInActiveWord(r, c)) return "rgba(0,101,111,0.06)";
+    return "rgba(0,0,0,0.025)";
   };
 
   const numMap = {};
@@ -5390,7 +5458,7 @@ function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
                 }}>
                   <span style={{ fontSize: 26 }}>{d.icon}</span>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.sans }}>{d.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.sans }}>{d.label}</div>
                     <div style={{ fontSize: 12, color: T.muted }}>{d.desc}</div>
                   </div>
                 </button>
@@ -5436,7 +5504,7 @@ function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
                 style={{
                   width: 56, height: 56, borderRadius: 8,
                   background: getCellColor(r, c),
-                  border: isSelected(r, c) ? `2px solid ${T.accent1}` : isInActiveWord(r, c) ? "2px solid rgba(255,107,53,0.3)" : `1px solid ${isBlack(r, c) ? "transparent" : "rgba(255,255,255,0.1)"}`,
+                  border: isSelected(r, c) ? `2px solid ${T.accent1}` : isInActiveWord(r, c) ? "2px solid rgba(0,101,111,0.15)" : `1px solid ${isBlack(r, c) ? "transparent" : "rgba(0,0,0,0.05)"}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   position: "relative", cursor: isBlack(r, c) ? "default" : "pointer", transition: "all 0.15s ease",
                 }}>
@@ -5461,12 +5529,12 @@ function CrosswordPuzzle({ onNav, recordCrosswordComplete }) {
                     inputRef.current?.focus();
                   }} style={{
                     padding: "10px 14px", borderRadius: 10, cursor: "pointer",
-                    background: direction === "across" && selected.row === clue.row ? "rgba(255,107,53,0.08)" : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${direction === "across" && selected.row === clue.row ? "rgba(255,107,53,0.2)" : "transparent"}`,
+                    background: direction === "across" && selected.row === clue.row ? "rgba(0,101,111,0.06)" : "rgba(0,0,0,0.015)",
+                    border: `1px solid ${direction === "across" && selected.row === clue.row ? "rgba(0,101,111,0.12)" : "transparent"}`,
                     transition: "all 0.15s ease",
                   }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: T.accent1, marginRight: 8 }}>{clue.num}.</span>
-                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{clue.text}</span>
+                    <span style={{ fontSize: 13, color: "rgba(41,47,59,0.65)" }}>{clue.text}</span>
                   </div>
                 ))}
               </div>
@@ -5591,15 +5659,17 @@ function QuadWordPuzzle({ onNav, onComplete }) {
   };
   const dayNumber = useMemo(() => Math.floor(Date.now() / 86400000), []);
   const diffSettings = { easy: { guesses: 9, showHints: true }, medium: { guesses: 9, showHints: true }, hard: { guesses: 7, showHints: false } };
+  const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
   const [difficulty, setDifficulty] = useState(() => {
     const prefs = Storage.get(STORAGE_KEYS.PUZZLE_PREFS);
-    return prefs?.quadword || null;
+    const saved = prefs?.quadword;
+    return VALID_DIFFICULTIES.includes(saved) ? saved : null;
   });
-  const pool = difficulty ? wordPools[difficulty] : null;
+  const pool = (difficulty && wordPools[difficulty]) ? wordPools[difficulty] : null;
   const set = pool ? pool[dayNumber % pool.length] : null;
   const answers = set?.words || [];
   const hints = set?.hints || [];
-  const settings = difficulty ? diffSettings[difficulty] : null;
+  const settings = (difficulty && diffSettings[difficulty]) ? diffSettings[difficulty] : null;
   const maxGuesses = settings?.guesses || 9;
   const wordLen = 5;
   const [guesses, setGuesses] = useState([]);
@@ -5632,7 +5702,7 @@ function QuadWordPuzzle({ onNav, onComplete }) {
                 }}>
                   <span style={{ fontSize: 26 }}>{d.icon}</span>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: T.sans }}>{d.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "rgba(41,47,59,0.85)", fontFamily: T.sans }}>{d.label}</div>
                     <div style={{ fontSize: 12, color: T.muted }}>{d.desc}</div>
                   </div>
                 </button>
@@ -5749,15 +5819,15 @@ function QuadWordPuzzle({ onNav, onComplete }) {
                       {Array.from({ length: wordLen }).map((_, col) => {
                         const letter = guess[col]?.trim() || "";
                         const status = isSubmitted ? getStatus(guess, col, boardIdx) : "empty";
-                        const colors = { correct: T.green, present: T.yellow, absent: "rgba(255,255,255,0.06)", empty: "rgba(255,255,255,0.04)" };
+                        const colors = { correct: T.green, present: T.yellow, absent: "rgba(0,0,0,0.04)", empty: "rgba(0,0,0,0.025)" };
                         return (
                           <div key={col} style={{
                             width: 28, height: 28, borderRadius: 5,
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontSize: 12, fontWeight: 700, fontFamily: T.serif,
-                            color: isSubmitted && status !== "absent" ? "#fff" : "rgba(255,255,255,0.6)",
+                            color: isSubmitted && status !== "absent" ? "#fff" : "rgba(41,47,59,0.55)",
                             background: isSubmitted ? colors[status] : colors.empty,
-                            border: `1px solid ${isSubmitted ? "transparent" : "rgba(255,255,255,0.08)"}`,
+                            border: `1px solid ${isSubmitted ? "transparent" : "rgba(0,0,0,0.04)"}`,
                           }}>{letter}</div>
                         );
                       })}
@@ -5777,7 +5847,7 @@ function QuadWordPuzzle({ onNav, onComplete }) {
                 return (
                   <button key={key} onClick={() => handleKey(key)} style={{
                     minWidth: isWide ? 48 : 28, height: 38, borderRadius: 7, border: "none",
-                    background: "rgba(255,255,255,0.1)", color: "#fff",
+                    background: "rgba(0,0,0,0.05)", color: "#292f3b",
                     fontSize: isWide ? 9 : 13, fontWeight: 700, fontFamily: T.sans, cursor: "pointer", transition: "all 0.15s ease",
                   }}>{key}</button>
                 );
@@ -5808,18 +5878,18 @@ const PALETTE_CATEGORIES = [
 const INTENSITY_LABELS = { 1: "Mild", 2: "Moderate", 3: "Strong", 4: "Intense" };
 const INTENSITY_COLORS = {
   1: { bg: "rgba(6,214,160,0.12)", border: "rgba(6,214,160,0.25)", text: "#06D6A0", dot: "#06D6A0" },
-  2: { bg: "rgba(255,214,10,0.12)", border: "rgba(255,214,10,0.25)", text: "#FFD60A", dot: "#FFD60A" },
-  3: { bg: "rgba(255,107,53,0.12)", border: "rgba(255,107,53,0.25)", text: "#FF6B35", dot: "#FF6B35" },
-  4: { bg: "rgba(255,45,85,0.12)", border: "rgba(255,45,85,0.25)", text: "#FF2D55", dot: "#FF2D55" },
+  2: { bg: "rgba(212,160,23,0.12)", border: "rgba(212,160,23,0.25)", text: "#D4A017", dot: "#D4A017" },
+  3: { bg: "rgba(118,86,0,0.10)", border: "rgba(118,86,0,0.25)", text: "#765600", dot: "#765600" },
+  4: { bg: "rgba(154,61,63,0.12)", border: "rgba(154,61,63,0.25)", text: "#9a3d3f", dot: "#9a3d3f" },
 };
 
 const CATEGORY_COLORS = {
-  emotion: "#FF6B35",
-  atmosphere: "#A855F7",
+  emotion: "#9a3d3f",
+  atmosphere: "#005861",
   sensory: "#06D6A0",
-  character: "#FFD60A",
+  character: "#D4A017",
   weather: "#60A5FA",
-  social: "#FF2D55",
+  social: "#765600",
   "text-specific": "#34C759",
 };
 
@@ -5900,25 +5970,25 @@ function PalettesScreen({ onNav, wordsDB }) {
           {/* Definition */}
           <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 16, padding: 18, marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: T.muted, marginBottom: 8 }}>Definition</div>
-            <div style={{ fontSize: 15, color: "rgba(255,255,255,0.9)", lineHeight: 1.6 }}>{activeWord.definition}</div>
+            <div style={{ fontSize: 15, color: "rgba(41,47,59,0.90)", lineHeight: 1.6 }}>{activeWord.definition}</div>
           </div>
 
           {/* Creative Example */}
-          <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.15)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+          <div style={{ background: "rgba(154,61,63,0.05)", border: "1px solid rgba(154,61,63,0.10)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: T.accent3, marginBottom: 8 }}>Creative Writing Example</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, fontStyle: "italic" }}>{activeWord.exampleCreative}</div>
+            <div style={{ fontSize: 14, color: "rgba(41,47,59,0.85)", lineHeight: 1.6, fontStyle: "italic" }}>{activeWord.exampleCreative}</div>
           </div>
 
           {/* Essay Example */}
-          <div style={{ background: "rgba(255,107,53,0.06)", border: "1px solid rgba(255,107,53,0.15)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+          <div style={{ background: "rgba(0,101,111,0.05)", border: "1px solid rgba(0,101,111,0.10)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: T.accent1, marginBottom: 8 }}>Essay Example</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, fontStyle: "italic" }}>{activeWord.exampleEssay}</div>
+            <div style={{ fontSize: 14, color: "rgba(41,47,59,0.85)", lineHeight: 1.6, fontStyle: "italic" }}>{activeWord.exampleEssay}</div>
           </div>
 
           {/* Tip */}
-          <div style={{ background: "rgba(255,214,10,0.06)", border: "1px solid rgba(255,214,10,0.15)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
+          <div style={{ background: "rgba(255,214,10,0.06)", border: "1px solid rgba(212,160,23,0.15)", borderRadius: 16, padding: 18, marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, color: T.yellow, marginBottom: 8 }}>Usage Tip</div>
-            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 1.6 }}>{activeWord.tip}</div>
+            <div style={{ fontSize: 14, color: "rgba(41,47,59,0.85)", lineHeight: 1.6 }}>{activeWord.tip}</div>
           </div>
 
           {/* Study this word button */}
@@ -5928,7 +5998,7 @@ function PalettesScreen({ onNav, wordsDB }) {
               style={{
                 background: gradient, borderRadius: 14, padding: "14px 20px", textAlign: "center",
                 cursor: "pointer", marginBottom: 20, fontWeight: 700, fontSize: 14, color: T.white,
-                boxShadow: "0 4px 20px rgba(255,107,53,0.3)",
+                boxShadow: "0 4px 20px rgba(0,101,111,0.15)",
               }}
             >
               Study "{activeWord.word}" in Word Cards →
@@ -6012,7 +6082,7 @@ function PalettesScreen({ onNav, wordsDB }) {
                           transition: "all 0.2s ease",
                         }}
                       >
-                        <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.9)", fontFamily: T.serif }}>{w.word}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(41,47,59,0.90)", fontFamily: T.serif }}>{w.word}</span>
                         {hasDb && <span style={{ fontSize: 10, opacity: 0.7 }}>📚</span>}
                       </div>
                     );
@@ -6095,7 +6165,7 @@ function PalettesScreen({ onNav, wordsDB }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
                       <span style={{ fontSize: 24 }}>{p.emoji}</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.9)", fontFamily: T.serif }}>{p.name}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(41,47,59,0.90)", fontFamily: T.serif }}>{p.name}</div>
                         <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{p.description}</div>
                       </div>
                       <span style={{ fontSize: 16, color: T.muted }}>›</span>
@@ -6282,7 +6352,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
               {q.act && <span style={{ fontSize: 12, color: T.muted }}>· {q.act}</span>}
               {q.character && <span style={{ fontSize: 12, color: T.muted }}>· {q.character}</span>}
             </div>
-            {q.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 8, lineHeight: 1.5 }}>{q.context}</div>}
+            {q.context && <div style={{ fontSize: 13, color: "rgba(41,47,59,0.55)", marginTop: 8, lineHeight: 1.5 }}>{q.context}</div>}
           </div>
           {/* Themes & Technique */}
           {(q.themes?.length > 0 || q.technique) && (
@@ -6297,8 +6367,8 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
                     {q.themes.map(t => (
                       <span key={t} style={{
                         fontSize: 11, padding: "4px 10px", borderRadius: 12,
-                        background: "rgba(168,85,247,0.15)", color: "rgba(168,85,247,0.9)",
-                        border: "1px solid rgba(168,85,247,0.2)",
+                        background: "rgba(154,61,63,0.10)", color: "rgba(0,93,101,0.85)",
+                        border: "1px solid rgba(0,101,111,0.15)",
                       }}>{t}</span>
                     ))}
                   </div>
@@ -6323,7 +6393,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
               borderRadius: 16, padding: 16, marginBottom: 16,
             }}>
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>Model Essay Sentence</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>{q.essaySentence}</div>
+              <div style={{ fontSize: 13, color: "rgba(41,47,59,0.70)", lineHeight: 1.6 }}>{q.essaySentence}</div>
             </div>
           )}
           {/* SM-2 status */}
@@ -6343,7 +6413,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
           {/* Edit button */}
           <button onClick={() => onNav("quoteadd", { editId: q.id })} style={{
             width: "100%", padding: "14px 0", borderRadius: 14,
-            background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`,
+            background: "rgba(0,0,0,0.04)", border: `1px solid ${T.cardBorder}`,
             color: T.white, fontSize: 14, fontWeight: 600, fontFamily: T.sans,
             cursor: "pointer", marginBottom: 40,
           }}>Edit Quote</button>
@@ -6384,7 +6454,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
           <button onClick={() => onNav("quotedrill")} style={{
             width: "100%", padding: "14px 0", borderRadius: 14,
             background: gradient, border: "none",
-            color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
+            color: "#292f3b", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
             cursor: "pointer", marginBottom: 16,
           }}>Practice {dueCount} Due Quote{dueCount !== 1 ? "s" : ""}</button>
         )}
@@ -6396,8 +6466,8 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
               <button key={t.id} onClick={() => setFilterText(t.id)} style={{
                 padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
                 whiteSpace: "nowrap", cursor: "pointer", fontFamily: T.sans,
-                border: filterText === t.id ? "1px solid rgba(255,107,53,0.4)" : `1px solid ${T.cardBorder}`,
-                background: filterText === t.id ? "rgba(255,107,53,0.12)" : T.card,
+                border: filterText === t.id ? "1px solid rgba(0,101,111,0.25)" : `1px solid ${T.cardBorder}`,
+                background: filterText === t.id ? "rgba(0,101,111,0.08)" : T.card,
                 color: filterText === t.id ? T.accent1 : T.muted,
               }}>{t.name}</button>
             ))}
@@ -6415,7 +6485,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
             <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, marginBottom: 20 }}>
               Add quotes from your set texts as you discover them in class. The app will help you memorise them using spaced repetition — the same science that powers your vocabulary practice.
             </div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: "rgba(41,47,59,0.35)", lineHeight: 1.5 }}>
               Tip: Start with 3–5 quotes your teacher highlights as important. You can always add more later.
             </div>
           </div>
@@ -6432,7 +6502,7 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
                 borderLeft: `3px solid ${textInfo?.color || T.accent1}`,
                 transition: "all 0.2s ease",
               }}>
-                <div style={{ fontSize: 14, fontFamily: T.serif, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic" }}>
+                <div style={{ fontSize: 14, fontFamily: T.serif, color: "rgba(41,47,59,0.85)", lineHeight: 1.5, marginBottom: 8, fontStyle: "italic" }}>
                   "{q.quote.length > 100 ? q.quote.slice(0, 100) + "…" : q.quote}"
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -6454,10 +6524,10 @@ function QuoteBankScreen({ onNav, quotes, userPrefs, navData }) {
         <button onClick={() => onNav("quoteadd")} style={{
           position: "fixed", bottom: 80, right: 20, width: 56, height: 56,
           borderRadius: "50%", background: gradient, border: "none",
-          color: "#fff", fontSize: 28, fontWeight: 400,
+          color: "#292f3b", fontSize: 28, fontWeight: 400,
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer", zIndex: 20,
-          boxShadow: "0 4px 20px rgba(255,107,53,0.35)",
+          boxShadow: "0 4px 20px rgba(0,101,111,0.20)",
         }}>+</button>
 
         <div style={{ height: 60 }} />
@@ -6562,7 +6632,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
   const inputStyle = {
     width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
     fontFamily: T.sans, color: T.white, border: `1px solid ${T.cardBorder}`,
-    background: "rgba(255,255,255,0.04)", outline: "none", boxSizing: "border-box",
+    background: "rgba(0,0,0,0.02)", outline: "none", boxSizing: "border-box",
   };
 
   const labelStyle = {
@@ -6583,7 +6653,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
 
         {error && (
           <div style={{
-            background: "rgba(255,45,85,0.12)", border: "1px solid rgba(255,45,85,0.3)",
+            background: "rgba(154,61,63,0.10)", border: "1px solid rgba(154,61,63,0.25)",
             borderRadius: 12, padding: "10px 14px", marginBottom: 16,
             fontSize: 13, color: T.accent2,
           }}>{error}</div>
@@ -6660,8 +6730,8 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
             {themes.map(t => (
               <button key={t} onClick={() => toggleTheme(t)} style={{
                 padding: "5px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                background: "rgba(168,85,247,0.2)", color: "#A855F7",
-                border: "1px solid rgba(168,85,247,0.35)", cursor: "pointer",
+                background: "rgba(0,101,111,0.12)", color: "#005861",
+                border: "1px solid rgba(0,101,111,0.20)", cursor: "pointer",
               }}>{t} ×</button>
             ))}
             <button onClick={() => setShowThemes(!showThemes)} style={{
@@ -6675,7 +6745,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
               {QUOTE_THEMES.filter(t => !themes.includes(t)).map(t => (
                 <button key={t} onClick={() => toggleTheme(t)} style={{
                   padding: "4px 10px", borderRadius: 10, fontSize: 11,
-                  background: "rgba(255,255,255,0.04)", color: T.muted,
+                  background: "rgba(0,0,0,0.02)", color: T.muted,
                   border: `1px solid ${T.cardBorder}`, cursor: "pointer",
                 }}>{t}</button>
               ))}
@@ -6697,7 +6767,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
               {QUOTE_TECHNIQUES.map(t => (
                 <button key={t} onClick={() => { setTechnique(t); setShowTechniques(false); }} style={{
                   padding: "5px 10px", borderRadius: 10, fontSize: 11,
-                  background: technique === t ? "rgba(6,214,160,0.2)" : "rgba(255,255,255,0.04)",
+                  background: technique === t ? "rgba(6,214,160,0.2)" : "rgba(0,0,0,0.025)",
                   color: technique === t ? T.cyan : T.muted,
                   border: technique === t ? "1px solid rgba(6,214,160,0.3)" : `1px solid ${T.cardBorder}`,
                   cursor: "pointer",
@@ -6706,8 +6776,8 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
               {technique && (
                 <button onClick={() => { setTechnique(""); setShowTechniques(false); }} style={{
                   padding: "5px 10px", borderRadius: 10, fontSize: 11,
-                  background: "rgba(255,45,85,0.12)", color: T.accent2,
-                  border: "1px solid rgba(255,45,85,0.2)", cursor: "pointer",
+                  background: "rgba(154,61,63,0.10)", color: T.accent2,
+                  border: "1px solid rgba(118,86,0,0.12)", cursor: "pointer",
                 }}>Clear</button>
               )}
             </div>
@@ -6730,7 +6800,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
         <button onClick={handleSave} style={{
           width: "100%", padding: "16px 0", borderRadius: 14,
           background: gradient, border: "none",
-          color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
+          color: "#292f3b", fontSize: 15, fontWeight: 700, fontFamily: T.sans,
           cursor: "pointer", marginBottom: 12,
         }}>{existing ? "Save Changes" : "Add to Quote Bank"}</button>
 
@@ -6738,7 +6808,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
         {existing && !confirmDelete && (
           <button onClick={() => setConfirmDelete(true)} style={{
             width: "100%", padding: "14px 0", borderRadius: 14,
-            background: "rgba(255,45,85,0.08)", border: "1px solid rgba(255,45,85,0.2)",
+            background: "rgba(118,86,0,0.06)", border: "1px solid rgba(118,86,0,0.12)",
             color: T.accent2, fontSize: 14, fontWeight: 600, fontFamily: T.sans,
             cursor: "pointer", marginBottom: 40,
           }}>Delete Quote</button>
@@ -6749,7 +6819,7 @@ function QuoteAddScreen({ onNav, quotes, setQuotes, awardXP, userPrefs, navData 
           }}>
             <button onClick={handleDelete} style={{
               flex: 1, padding: "14px 0", borderRadius: 14,
-              background: "rgba(255,45,85,0.15)", border: "1px solid rgba(255,45,85,0.3)",
+              background: "rgba(154,61,63,0.12)", border: "1px solid rgba(154,61,63,0.25)",
               color: T.accent2, fontSize: 14, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
             }}>Confirm Delete</button>
             <button onClick={() => setConfirmDelete(false)} style={{
@@ -6853,7 +6923,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
           <button onClick={() => onNav("quotebank")} style={{
             padding: "14px 32px", borderRadius: 14,
             background: gradient, border: "none",
-            color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: T.sans, cursor: "pointer",
+            color: "#292f3b", fontSize: 15, fontWeight: 700, fontFamily: T.sans, cursor: "pointer",
           }}>Back to Quote Bank</button>
         </div>
       </>
@@ -6900,10 +6970,10 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
             <span style={{ fontSize: 12, fontWeight: 600, color: T.muted }}>{currentIdx + 1} / {totalDue}</span>
             <span style={{
               fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 8,
-              background: "rgba(168,85,247,0.15)", color: "#A855F7",
+              background: "rgba(154,61,63,0.10)", color: "#005861",
             }}>{drillLabels[drillStage]}</span>
           </div>
-          <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+          <div style={{ height: 4, borderRadius: 2, background: "rgba(0,0,0,0.04)", overflow: "hidden" }}>
             <div style={{
               height: "100%", borderRadius: 2,
               width: `${((currentIdx + 1) / totalDue) * 100}%`,
@@ -6934,7 +7004,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
             {!showReveal ? (
               <button onClick={() => setShowReveal(true)} style={{
                 width: "100%", padding: "14px 0", borderRadius: 14,
-                background: "rgba(255,255,255,0.06)", border: `1px solid ${T.cardBorder}`,
+                background: "rgba(0,0,0,0.04)", border: `1px solid ${T.cardBorder}`,
                 color: T.white, fontSize: 14, fontWeight: 600, fontFamily: T.sans, cursor: "pointer",
                 marginBottom: 16,
               }}>Reveal Context & Themes</button>
@@ -6943,13 +7013,13 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
                 background: T.card, border: `1px solid ${T.cardBorder}`,
                 borderRadius: 14, padding: 16, marginBottom: 16,
               }}>
-                {current.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", marginBottom: 8, lineHeight: 1.5 }}>{current.context}</div>}
+                {current.context && <div style={{ fontSize: 13, color: "rgba(41,47,59,0.60)", marginBottom: 8, lineHeight: 1.5 }}>{current.context}</div>}
                 {current.themes?.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {current.themes.map(t => (
                       <span key={t} style={{
                         fontSize: 10, padding: "3px 8px", borderRadius: 8,
-                        background: "rgba(168,85,247,0.15)", color: "rgba(168,85,247,0.85)",
+                        background: "rgba(154,61,63,0.10)", color: "rgba(0,93,101,0.80)",
                       }}>{t}</span>
                     ))}
                   </div>
@@ -6994,10 +7064,10 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
                             padding: "2px 6px", borderRadius: 6, fontSize: 14,
                             fontFamily: T.serif, textAlign: "center",
                             background: isChecked
-                              ? (isCorrect ? "rgba(52,199,89,0.15)" : "rgba(255,45,85,0.15)")
-                              : "rgba(255,255,255,0.08)",
+                              ? (isCorrect ? "rgba(52,199,89,0.15)" : "rgba(154,61,63,0.12)")
+                              : "rgba(0,0,0,0.04)",
                             border: isChecked
-                              ? `1px solid ${isCorrect ? "rgba(52,199,89,0.4)" : "rgba(255,45,85,0.4)"}`
+                              ? `1px solid ${isCorrect ? "rgba(52,199,89,0.4)" : "rgba(154,61,63,0.35)"}`
                               : `1px solid ${T.cardBorder}`,
                             color: T.white, outline: "none",
                           }}
@@ -7011,7 +7081,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
             {!showReveal ? (
               <button onClick={checkCloze} disabled={!allClozeFilled} style={{
                 width: "100%", padding: "14px 0", borderRadius: 14,
-                background: allClozeFilled ? gradient : "rgba(255,255,255,0.06)",
+                background: allClozeFilled ? gradient : "rgba(0,0,0,0.04)",
                 border: allClozeFilled ? "none" : `1px solid ${T.cardBorder}`,
                 color: allClozeFilled ? "#fff" : T.dimmed,
                 fontSize: 14, fontWeight: 600, fontFamily: T.sans,
@@ -7036,7 +7106,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
               borderRadius: 16, padding: 20, marginBottom: 12,
             }}>
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>First Letters</div>
-              <div style={{ fontSize: 16, fontFamily: "monospace", color: "rgba(168,85,247,0.8)", lineHeight: 1.8, letterSpacing: 1 }}>
+              <div style={{ fontSize: 16, fontFamily: "monospace", color: "rgba(0,93,101,0.75)", lineHeight: 1.8, letterSpacing: 1 }}>
                 {firstLetterHint}
               </div>
             </div>
@@ -7049,14 +7119,14 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
               style={{
                 width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
                 fontFamily: T.serif, color: T.white, border: `1px solid ${T.cardBorder}`,
-                background: "rgba(255,255,255,0.04)", outline: "none", resize: "vertical",
+                background: "rgba(0,0,0,0.02)", outline: "none", resize: "vertical",
                 lineHeight: 1.6, boxSizing: "border-box", marginBottom: 12,
               }}
             />
             {!showReveal ? (
               <button onClick={checkTyped} disabled={!typedText.trim()} style={{
                 width: "100%", padding: "14px 0", borderRadius: 14,
-                background: typedText.trim() ? gradient : "rgba(255,255,255,0.06)",
+                background: typedText.trim() ? gradient : "rgba(0,0,0,0.04)",
                 border: typedText.trim() ? "none" : `1px solid ${T.cardBorder}`,
                 color: typedText.trim() ? "#fff" : T.dimmed,
                 fontSize: 14, fontWeight: 600, fontFamily: T.sans,
@@ -7074,7 +7144,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
                   borderRadius: 12, padding: 14, marginBottom: 8,
                 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>CORRECT QUOTE</div>
-                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
+                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(41,47,59,0.65)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
                 </div>
                 <div style={{ fontSize: 12, color: T.muted, textAlign: "center" }}>Rate your recall below</div>
               </div>
@@ -7092,13 +7162,13 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, color: T.muted, textTransform: "uppercase", marginBottom: 8 }}>
                 Recall this quote from memory
               </div>
-              {current.context && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>{current.context}</div>}
+              {current.context && <div style={{ fontSize: 13, color: "rgba(41,47,59,0.50)", lineHeight: 1.5 }}>{current.context}</div>}
               {current.themes?.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                   {current.themes.map(t => (
                     <span key={t} style={{
                       fontSize: 10, padding: "2px 7px", borderRadius: 6,
-                      background: "rgba(168,85,247,0.12)", color: "rgba(168,85,247,0.7)",
+                      background: "rgba(0,101,111,0.08)", color: "rgba(0,93,101,0.65)",
                     }}>{t}</span>
                   ))}
                 </div>
@@ -7113,14 +7183,14 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
               style={{
                 width: "100%", padding: "12px 14px", borderRadius: 12, fontSize: 14,
                 fontFamily: T.serif, color: T.white, border: `1px solid ${T.cardBorder}`,
-                background: "rgba(255,255,255,0.04)", outline: "none", resize: "vertical",
+                background: "rgba(0,0,0,0.02)", outline: "none", resize: "vertical",
                 lineHeight: 1.6, boxSizing: "border-box", marginBottom: 12,
               }}
             />
             {!showReveal ? (
               <button onClick={checkTyped} disabled={!typedText.trim()} style={{
                 width: "100%", padding: "14px 0", borderRadius: 14,
-                background: typedText.trim() ? gradient : "rgba(255,255,255,0.06)",
+                background: typedText.trim() ? gradient : "rgba(0,0,0,0.04)",
                 border: typedText.trim() ? "none" : `1px solid ${T.cardBorder}`,
                 color: typedText.trim() ? "#fff" : T.dimmed,
                 fontSize: 14, fontWeight: 600, fontFamily: T.sans,
@@ -7138,7 +7208,7 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
                   borderRadius: 12, padding: 14, marginBottom: 8,
                 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 6 }}>CORRECT QUOTE</div>
-                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(255,255,255,0.7)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
+                  <div style={{ fontSize: 13, fontFamily: T.serif, color: "rgba(41,47,59,0.65)", lineHeight: 1.6, fontStyle: "italic" }}>"{current.quote}"</div>
                 </div>
                 <div style={{ fontSize: 12, color: T.muted, textAlign: "center" }}>Rate your recall below</div>
               </div>
@@ -7150,8 +7220,8 @@ function QuoteDrillScreen({ onNav, quotes, setQuotes, awardXP }) {
         {showReveal && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 40 }}>
             {[
-              { rating: 0, label: "Again", color: T.accent2, bg: "rgba(255,45,85,0.12)" },
-              { rating: 1, label: "Hard", color: T.yellow, bg: "rgba(255,214,10,0.12)" },
+              { rating: 0, label: "Again", color: T.accent2, bg: "rgba(154,61,63,0.10)" },
+              { rating: 1, label: "Hard", color: T.yellow, bg: "rgba(212,160,23,0.12)" },
               { rating: 2, label: "Good", color: T.cyan, bg: "rgba(6,214,160,0.12)" },
               { rating: 3, label: "Easy", color: T.green, bg: "rgba(52,199,89,0.12)" },
             ].map(({ rating, label, color, bg }) => (
@@ -7191,13 +7261,13 @@ function BadgesScreen({ onNav, gameState, badges }) {
             return (
               <div key={b.id} style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
-                background: earned ? "rgba(255,107,53,0.08)" : T.card,
-                border: `1px solid ${earned ? "rgba(255,107,53,0.2)" : T.cardBorder}`,
+                background: earned ? "rgba(0,101,111,0.06)" : T.card,
+                border: `1px solid ${earned ? "rgba(0,101,111,0.12)" : T.cardBorder}`,
                 borderRadius: 16, opacity: earned ? 1 : 0.5,
               }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 14,
-                  background: earned ? "rgba(255,214,10,0.12)" : "rgba(255,255,255,0.04)",
+                  background: earned ? "rgba(212,160,23,0.12)" : "rgba(0,0,0,0.025)",
                   border: `1px solid ${earned ? "rgba(255,214,10,0.3)" : T.cardBorder}`,
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24,
                   filter: earned ? "none" : "grayscale(1)",
@@ -7251,7 +7321,7 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
           display: "flex", alignItems: "center", gap: 16, padding: 20,
           background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: T.radius, marginBottom: 24,
         }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: "#fff" }}>{(userPrefs?.name || "S")[0].toUpperCase()}</div>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700, color: "#292f3b" }}>{(userPrefs?.name || "S")[0].toUpperCase()}</div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.white, fontFamily: T.serif }}>{userPrefs?.name || "Student"}</div>
             <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>NESA English Student</div>
@@ -7264,9 +7334,9 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
           {["Year 10", "Year 11", "Year 12"].map((y) => (
             <button key={y} onClick={() => handleYearChange(y)} style={{
               flex: 1, padding: "14px 8px", borderRadius: 14, cursor: "pointer",
-              background: year === y ? "rgba(255,107,53,0.15)" : T.card,
+              background: year === y ? "rgba(0,101,111,0.10)" : T.card,
               border: year === y ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`,
-              color: year === y ? T.accent1 : "rgba(255,255,255,0.7)",
+              color: year === y ? T.accent1 : "rgba(41,47,59,0.55)",
               fontSize: 13, fontWeight: 600, fontFamily: T.sans, transition: "all 0.25s ease",
             }}>{y}</button>
           ))}
@@ -7280,12 +7350,12 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
               <button key={g.id} onClick={() => setGoal(g.id)} style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
                 borderRadius: 14, cursor: "pointer", textAlign: "left",
-                background: sel ? "rgba(255,107,53,0.1)" : T.card,
+                background: sel ? "rgba(0,101,111,0.08)" : T.card,
                 border: sel ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`, transition: "all 0.25s ease",
               }}>
                 <span style={{ fontSize: 22 }}>{g.icon}</span>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: sel ? T.white : "rgba(255,255,255,0.7)", fontFamily: T.sans }}>{g.label}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: sel ? T.white : "rgba(41,47,59,0.60)", fontFamily: T.sans }}>{g.label}</div>
                   <div style={{ fontSize: 11, color: T.muted }}>{g.subtitle}</div>
                 </div>
                 {sel && <span style={{ marginLeft: "auto", color: T.accent1, fontSize: 16 }}>✓</span>}
@@ -7302,16 +7372,16 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
               <button key={t.id} onClick={() => toggleText(t.id)} style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
                 borderRadius: 14, cursor: "pointer", textAlign: "left",
-                background: sel ? "rgba(255,107,53,0.1)" : T.card,
+                background: sel ? "rgba(0,101,111,0.08)" : T.card,
                 border: sel ? `2px solid ${T.accent1}` : `1px solid ${T.cardBorder}`, transition: "all 0.25s ease",
               }}>
                 <span style={{ fontSize: 22 }}>{t.icon}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: sel ? T.white : "rgba(255,255,255,0.7)", fontFamily: T.sans }}>{t.name}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: sel ? T.white : "rgba(41,47,59,0.60)", fontFamily: T.sans }}>{t.name}</span>
                 <div style={{
                   marginLeft: "auto", width: 22, height: 22, borderRadius: "50%",
-                  background: sel ? gradient : "rgba(255,255,255,0.08)",
-                  border: sel ? "none" : "1px solid rgba(255,255,255,0.15)",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff",
+                  background: sel ? gradient : "rgba(0,0,0,0.04)",
+                  border: sel ? "none" : "1px solid rgba(0,0,0,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#292f3b",
                 }}>{sel && "✓"}</div>
               </button>
             );
@@ -7325,13 +7395,13 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>Test Pronunciation</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(41,47,59,0.85)" }}>Test Pronunciation</div>
             <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>Tap to hear a sample word</div>
           </div>
           <button onClick={() => speak("Ethereal")} style={{
-            background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.25)",
+            background: "rgba(154,61,63,0.10)", border: "1px solid rgba(154,61,63,0.15)",
             borderRadius: 12, padding: "8px 14px", cursor: "pointer",
-            fontSize: 12, color: "#C084FC", fontWeight: 600, fontFamily: T.sans,
+            fontSize: 12, color: T.accent3, fontWeight: 600, fontFamily: T.sans,
           }}>🔊 "Ethereal"</button>
         </div>
 
@@ -7347,7 +7417,7 @@ function SettingsScreen({ onNav, userPrefs, setUserPrefs, onReset }) {
               }}>Reset all progress</button>
             ) : (
               <div style={{ background: "rgba(255,59,48,0.08)", border: "1px solid rgba(255,59,48,0.2)", borderRadius: 14, padding: 14 }}>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>This will clear all XP, streaks, badges, and word progress. Are you sure?</div>
+                <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)", marginBottom: 12 }}>This will clear all XP, streaks, badges, and word progress. Are you sure?</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => { if (onReset) onReset(); }} style={{ flex: 1, padding: "10px", borderRadius: 10, background: "rgba(255,59,48,0.2)", border: "1px solid rgba(255,59,48,0.3)", color: "#FF3B30", fontSize: 13, fontWeight: 600, fontFamily: T.sans, cursor: "pointer" }}>Reset</button>
                   <button onClick={() => setConfirmReset(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, background: T.card, border: `1px solid ${T.cardBorder}`, color: T.muted, fontSize: 13, fontWeight: 600, fontFamily: T.sans, cursor: "pointer" }}>Cancel</button>
@@ -7731,13 +7801,15 @@ function WordSmithApp() {
       minHeight: "100vh", display: "flex", justifyContent: "center",
       alignItems: isAppFullScreen ? "stretch" : "flex-start",
       padding: isAppFullScreen ? 0 : "20px 0",
-      background: "#08080c", fontFamily: T.sans,
+      background: T.surface, fontFamily: T.sans,
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+        .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
         @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 20px rgba(255,107,53,0.3), 0 0 60px rgba(255,45,85,0.1); } 50% { box-shadow: 0 0 30px rgba(255,107,53,0.5), 0 0 80px rgba(255,45,85,0.2); } }
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 20px rgba(0,101,111,0.3), 0 0 60px rgba(0,88,97,0.1); } 50% { box-shadow: 0 0 30px rgba(0,101,111,0.5), 0 0 80px rgba(0,88,97,0.2); } }
         @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         @keyframes flameDance { 0%, 100% { transform: rotate(-2deg) scale(1); } 25% { transform: rotate(2deg) scale(1.05); } 75% { transform: rotate(1.5deg) scale(1.04); } }
@@ -7819,22 +7891,28 @@ function WordSmithApp() {
             />
           )}
           {screen === "wordle" && (
+            <ErrorBoundary onRecover={() => handleNav("home")}>
             <WordlePuzzle
               onNav={handleNav}
               recordWordleSolve={recordWordleSolve}
             />
+            </ErrorBoundary>
           )}
           {screen === "crossword" && (
+            <ErrorBoundary onRecover={() => handleNav("home")}>
             <CrosswordPuzzle
               onNav={handleNav}
               recordCrosswordComplete={recordCrosswordComplete}
             />
+            </ErrorBoundary>
           )}
           {screen === "quadword" && (
+            <ErrorBoundary onRecover={() => handleNav("home")}>
             <QuadWordPuzzle
               onNav={handleNav}
               onComplete={recordQuadWordComplete}
             />
+            </ErrorBoundary>
           )}
           {screen === "badges" && (
             <BadgesScreen onNav={handleNav} gameState={gameState} badges={BADGES} />
@@ -7942,12 +8020,12 @@ function WordSmithApp() {
             '<div style="font-family:sans-serif;color:#fff;text-align:center;padding:40px 24px;max-width:340px;margin:0 auto">',
             '<div style="font-size:40px;margin-bottom:16px">⚠️</div>',
             '<div style="font-size:20px;font-weight:700;margin-bottom:12px">WordSmith failed to load</div>',
-            '<div style="font-size:14px;color:rgba(255,255,255,0.7);line-height:1.6;margin-bottom:20px">',
+            '<div style="font-size:14px;color:rgba(41,47,59,0.60);line-height:1.6;margin-bottom:20px">',
             'This is usually caused by a slow or blocked internet connection.',
             '<br><br>',
             'The app requires internet access to load React and Babel from unpkg.com.',
             '</div>',
-            '<button onclick="location.reload()" style="background:#FF6B35;color:#fff;border:none;',
+            '<button onclick="location.reload()" style="background:#00656f;color:#fff;border:none;',
             'border-radius:12px;padding:14px 28px;font-size:16px;font-weight:600;cursor:pointer">',
             'Try Again</button>',
             '</div>'
