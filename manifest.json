@@ -2,7 +2,7 @@
   "name": "WordSmith",
   "short_name": "WordSmith",
   "description": "Vocabulary Mastery for NESA English — Year 10–12",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#08080c",
   "theme_color": "#0d0d14",
