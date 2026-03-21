@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="WordSmith" />
   <meta name="theme-color" content="#f5f6ff" />
   <meta name="description" content="WordSmith — Vocabulary Mastery for NESA English" />
@@ -8003,8 +8003,12 @@ function WordSmithApp() {
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('WordSmith SW registered:', reg.scope))
+        navigator.serviceWorker.register('sw.js', { scope: '/Wordsmith/' })
+          .then(reg => {
+            console.log('WordSmith SW registered:', reg.scope);
+            /* Force update check on each load */
+            reg.update();
+          })
           .catch(err => console.log('SW registration failed:', err));
       });
     }
