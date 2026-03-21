@@ -1,8 +1,8 @@
 {
-  "name": "WordSmith",
-  "short_name": "WordSmith",
+  "name": "Wordsmith",
+  "short_name": "Wordsmith",
   "description": "Vocabulary Mastery for NESA English — Year 10–12",
-  "start_url": ".",
+  "start_url": "/Wordsmith",
   "scope": ".",
   "display": "standalone",
   "background_color": "#f5f6ff",
