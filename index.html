@@ -4696,23 +4696,34 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
   const q = questions[qIdx];
 
   const scoreRef = useRef(0);
+  // Snapshot the question at the moment the user checks their answer.
+  // Prevents q (derived from qIdx) from drifting to the next question
+  // during the showResult phase in React 18 batched re-renders, which
+  // caused the question text to change and the answer to be marked wrong.
+  const activeQuestionRef = useRef(null);
 
   const resetQuiz = () => {
     setQIdx(0); setSelected(null); setFillInput(""); setShowResult(false);
-    setScore(0); setDone(false); scoreRef.current = 0;
+    setScore(0); setDone(false); scoreRef.current = 0; activeQuestionRef.current = null;
   };
 
   const checkAnswer = () => {
+    // Snapshot q before any state update triggers a re-render
+    activeQuestionRef.current = q;
     setShowResult(true);
     if (q.type === "multiple_choice" && selected === q.correct) { setScore((s) => { scoreRef.current = s + 1; return s + 1; }); }
     if (q.type === "fill_blank" && fuzzyWordMatch(fillInput, q.answer)) { setScore((s) => { scoreRef.current = s + 1; return s + 1; }); }
   };
 
   const next = () => {
+    activeQuestionRef.current = null;
     setSelected(null); setFillInput(""); setShowResult(false);
     if (qIdx < total - 1) setQIdx(qIdx + 1);
     else { setDone(true); recordQuizComplete(scoreRef.current, total); }
   };
+
+  // During result display use the snapshotted question; otherwise use the live one.
+  const displayQ = (showResult && activeQuestionRef.current) ? activeQuestionRef.current : q;
 
   // Mode selector
   if (!mode) {
@@ -4792,16 +4803,16 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
           fontSize: 11, fontWeight: 600, color: T.accent3, letterSpacing: 1, textTransform: "uppercase",
           marginBottom: 12, background: "rgba(0,101,111,0.08)", display: "inline-block", padding: "4px 12px", borderRadius: 20,
         }}>
-          {q.type === "multiple_choice" ? "Multiple Choice" : "Fill in the Blank"}
+          {displayQ.type === "multiple_choice" ? "Multiple Choice" : "Fill in the Blank"}
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700, fontFamily: T.serif, color: T.white, lineHeight: 1.4, marginBottom: 24 }}>{q.question}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, fontFamily: T.serif, color: T.white, lineHeight: 1.4, marginBottom: 24 }}>{displayQ.question}</div>
 
-        {q.type === "multiple_choice" ? (
+        {displayQ.type === "multiple_choice" ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-            {q.options.map((opt, i) => {
+            {displayQ.options.map((opt, i) => {
               let bg = T.card, border = T.cardBorder, col = "rgba(41,47,59,0.80)";
-              if (showResult && i === q.correct) { bg = "rgba(52,199,89,0.12)"; border = "rgba(52,199,89,0.4)"; col = T.green; }
-              else if (showResult && selected === i && i !== q.correct) { bg = "rgba(255,59,48,0.12)"; border = "rgba(255,59,48,0.4)"; col = "#FF3B30"; }
+              if (showResult && i === displayQ.correct) { bg = "rgba(52,199,89,0.12)"; border = "rgba(52,199,89,0.4)"; col = T.green; }
+              else if (showResult && selected === i && i !== displayQ.correct) { bg = "rgba(255,59,48,0.12)"; border = "rgba(255,59,48,0.4)"; col = "#FF3B30"; }
               else if (selected === i) { bg = "rgba(0,101,111,0.08)"; border = "rgba(0,101,111,0.15)"; }
               return (
                 <button key={i} onClick={() => !showResult && setSelected(i)} style={{
@@ -4823,24 +4834,24 @@ function QuizScreen({ onNav, recordQuizComplete, wordsDB }) {
               placeholder="Type your answer..."
               style={{
                 width: "100%", padding: "16px 18px", borderRadius: 14,
-                background: T.card, border: `1px solid ${showResult ? (fuzzyWordMatch(fillInput, q.answer) ? "rgba(52,199,89,0.4)" : "rgba(255,59,48,0.4)") : T.cardBorder}`,
+                background: T.card, border: `1px solid ${showResult ? (fuzzyWordMatch(fillInput, displayQ.answer) ? "rgba(52,199,89,0.4)" : "rgba(255,59,48,0.4)") : T.cardBorder}`,
                 color: T.white, fontSize: 16, fontFamily: T.sans, outline: "none", boxSizing: "border-box", transition: "border 0.2s ease",
               }}
             />
-            {!showResult && q.hint && (
-              <div style={{ fontSize: 12, color: T.dimmed, marginTop: 8, fontStyle: "italic" }}>💡 Hint: {q.hint}</div>
+            {!showResult && displayQ.hint && (
+              <div style={{ fontSize: 12, color: T.dimmed, marginTop: 8, fontStyle: "italic" }}>💡 Hint: {displayQ.hint}</div>
             )}
           </div>
         )}
 
         {showResult && (
           <div style={{ padding: 16, borderRadius: 14, marginBottom: 16, animation: "fadeSlideUp 0.3s ease both", background: "rgba(0,0,0,0.02)", border: `1px solid ${T.cardBorder}` }}>
-            <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)", lineHeight: 1.55 }}>{q.explanation}</div>
+            <div style={{ fontSize: 13, color: "rgba(41,47,59,0.65)", lineHeight: 1.55 }}>{displayQ.explanation}</div>
           </div>
         )}
 
         {!showResult ? (
-          <Btn onClick={checkAnswer} disabled={q.type === "multiple_choice" ? selected === null : !fillInput.trim()}>Check Answer</Btn>
+          <Btn onClick={checkAnswer} disabled={displayQ.type === "multiple_choice" ? selected === null : !fillInput.trim()}>Check Answer</Btn>
         ) : (
           <Btn onClick={next}>{qIdx < total - 1 ? "Next Question →" : "See Results 🎉"}</Btn>
         )}
